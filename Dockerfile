@@ -1,38 +1,54 @@
-# Multi-stage Docker build for Timetable Generator API
+# ==========================================
+# Stage 1: Builder (Heavy lifting)
+# ==========================================
+FROM python:3.11-slim as builder
 
-# Stage 1: Base
-FROM python:3.11-slim as base
-
-# Install system dependencies for PDF processing
+# Install build dependencies (GCC, etc.)
 RUN apt-get update && apt-get install -y \
     gcc \
-    g++ \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Stage 2: Dependencies
-FROM base as dependencies
+# Create a virtual environment to isolate dependencies
+RUN python -m venv /opt/venv
+# Enable venv for the upcoming pip install
+ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Stage 3: Application
-FROM dependencies as application
+
+# ==========================================
+# Stage 2: Runner (Lightweight / Production)
+# ==========================================
+FROM python:3.11-slim as runner
+
+# Install ONLY runtime libraries (libpq) needed for Postgres
+# We do NOT install gcc or g++ here
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the virtual environment from the builder stage
+COPY --from=builder /opt/venv /opt/venv
+
+# Enable the venv in this stage too
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY ./app ./app
+# Do NOT copy .env.example to .env (See "Secrets" below)
 COPY ./init_db.py .
-COPY ./.env.example ./.env
 
 # Create uploads directory
 RUN mkdir -p uploads
 
-# Expose port
-EXPOSE 8000
-
-# Initialize database and run application
-CMD python init_db.py && \
-    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+# Cloud Run usage:
+# We use the $PORT environment variable.
+# Workers: Keep it low (1-2) for Free Tier instances which usually have 1 vCPU.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1

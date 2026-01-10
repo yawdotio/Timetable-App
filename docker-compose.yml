@@ -1,25 +1,6 @@
-# Docker Compose for Timetable Generator
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  db:
-    image: postgres:15-alpine
-    container_name: timetable_db
-    environment:
-      POSTGRES_DB: timetable_generator
-      POSTGRES_USER: timetable_user
-      POSTGRES_PASSWORD: changeme123
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U timetable_user"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # FastAPI Application
   api:
     build: .
@@ -27,14 +8,17 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://timetable_user:changeme123@db:5432/timetable_generator
-      PROJECT_NAME: Timetable Generator API
-      API_V1_STR: /api/v1
-      CORS_ORIGINS: '["http://localhost:3000", "http://localhost:5173"]'
-      TIMEZONE: UTC
-    depends_on:
-      db:
-        condition: service_healthy
+      # Use Supabase connection string
+      DATABASE_URL: ${DATABASE_URL}
+      PROJECT_NAME: ${PROJECT_NAME:-Timetable Generator API}
+      API_V1_STR: ${API_V1_STR:-/api/v1}
+      SECRET_KEY: ${SECRET_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      API_BASE_URL: ${API_BASE_URL}
+      CALENDAR_NAME: ${CALENDAR_NAME:-University Timetable}
+      TIMEZONE: ${TIMEZONE:-UTC}
     volumes:
       - ./uploads:/app/uploads
       - ./app:/app/app  # For development hot reload
@@ -44,5 +28,4 @@ services:
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
 
-volumes:
-  postgres_data:
+# No volumes needed since we're using external Supabase DB
