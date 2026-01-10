@@ -1,0 +1,48 @@
+# Docker Compose for Timetable Generator
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: timetable_db
+    environment:
+      POSTGRES_DB: timetable_generator
+      POSTGRES_USER: timetable_user
+      POSTGRES_PASSWORD: changeme123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U timetable_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  api:
+    build: .
+    container_name: timetable_api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://timetable_user:changeme123@db:5432/timetable_generator
+      PROJECT_NAME: Timetable Generator API
+      API_V1_STR: /api/v1
+      CORS_ORIGINS: '["http://localhost:3000", "http://localhost:5173"]'
+      TIMEZONE: UTC
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+      - ./app:/app/app  # For development hot reload
+    command: >
+      sh -c "
+        python init_db.py &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+volumes:
+  postgres_data:

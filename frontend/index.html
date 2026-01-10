@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📅 Timetable Generator</h1>
+            <p class="subtitle">Create calendar subscriptions from your timetable</p>
+            <div class="header-actions">
+                <button class="btn btn-small btn-secondary" onclick="viewSubscriptionsFromHeader()">
+                    📚 My Subscriptions
+                </button>
+            </div>
+        </header>
+
+        <!-- Step 1: Choose a Timetable -->
+        <section id="gallery-section" class="section">
+            <h2>Step 1: Choose Your Timetable</h2>
+            <p class="section-description">Select a saved timetable to create a personalized calendar</p>
+            <div id="gallery-list" class="gallery-list"></div>
+        </section>
+
+        <!-- Step 2: Column Mapping -->
+        <section id="mapping-section" class="section hidden">
+            <h2>Step 2: Map Your Columns</h2>
+            <p class="section-description">Tell us which column contains what information</p>
+            <div id="sheet-selector" class="sheet-selector hidden"></div>
+            
+            <!-- Base Date Selector -->
+            <div class="base-date-selector">
+                <div class="info-icon">📅</div>
+                <div class="base-date-content">
+                    <label for="base-date-input">
+                        <strong>Start Week Date (Optional):</strong>
+                    </label>
+                    <input type="date" id="base-date-input" class="date-input">
+                    <p class="base-date-hint">
+                        If your timetable has day names (Monday, Tuesday, etc.), select a starting date. 
+                        The system will automatically calculate the next occurrence of each weekday.<br>
+                        <strong>Example:</strong> If you select Jan 10, 2026 (Friday), then Monday events → Jan 13, Tuesday events → Jan 14, etc.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="mapping-grid">
+                <div class="mapping-row">
+                    <label>Date Column:</label>
+                    <select id="date-column" class="mapping-select">
+                        <option value="">-- Select Column --</option>
+                    </select>
+                </div>
+                <div class="mapping-row">
+                    <label>Time Column:</label>
+                    <select id="time-column" class="mapping-select">
+                        <option value="">-- Select Column --</option>
+                    </select>
+                </div>
+                <div class="mapping-row">
+                    <label>Event Title Column: *</label>
+                    <select id="title-column" class="mapping-select" required>
+                        <option value="">-- Select Column --</option>
+                    </select>
+                </div>
+                <div class="mapping-row">
+                    <label>Location Column:</label>
+                    <select id="location-column" class="mapping-select">
+                        <option value="">-- Select Column --</option>
+                    </select>
+                </div>
+                <div class="mapping-row">
+                    <label>End Time Column:</label>
+                    <select id="end-time-column" class="mapping-select">
+                        <option value="">-- Select Column --</option>
+                    </select>
+                </div>
+                <div class="mapping-row">
+                    <label>Description Column:</label>
+                    <select id="description-column" class="mapping-select">
+                        <option value="">-- Select Column --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="resetUpload()">Start Over</button>
+                <div class="save-upload-row">
+                    <input type="text" id="save-upload-name" class="text-input" placeholder="Name this upload (e.g., Fall Schedule)">
+                    <button class="btn btn-secondary" onclick="saveCurrentUpload()">Save to Gallery</button>
+                </div>
+                <button class="btn btn-primary" onclick="applyMapping()">Apply Mapping</button>
+            </div>
+        </section>
+
+        <!-- Step 3: Event Selection -->
+        <section id="selection-section" class="section hidden">
+            <h2>Step 3: Select Events</h2>
+            <p class="section-description">Review and select which events to include in your calendar</p>
+            
+            <!-- Course Level Selector -->
+            <div class="level-filter-section">
+                <div class="level-filter">
+                    <label><strong>Filter by Level:</strong></label>
+                    <div class="level-buttons">
+                        <button class="level-btn active" onclick="filterByLevel('all')" data-level="all">All Levels</button>
+                        <button class="level-btn" onclick="filterByLevel(100)" data-level="100">Level 100</button>
+                        <button class="level-btn" onclick="filterByLevel(200)" data-level="200">Level 200</button>
+                        <button class="level-btn" onclick="filterByLevel(300)" data-level="300">Level 300</button>
+                        <button class="level-btn" onclick="filterByLevel(400)" data-level="400">Level 400</button>
+                        <button class="level-btn" onclick="filterByLevel(500)" data-level="500">Level 500</button>
+                        <button class="level-btn" onclick="filterByLevel(600)" data-level="600">Level 600</button>
+                        <button class="level-btn" onclick="filterByLevel(700)" data-level="700">Level 700</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search and Filter -->
+            <div class="search-filter-section">
+                <input type="text" id="course-search" class="course-search" placeholder="🔍 Search courses by name, venue, or code..." onkeyup="filterAndSearchEvents()">
+                <div class="search-results-info" id="search-results-info"></div>
+            </div>
+            
+            <div class="event-controls">
+                <button class="btn btn-small" onclick="selectAllEvents()">Select All</button>
+                <button class="btn btn-small" onclick="deselectAllEvents()">Deselect All</button>
+                <span class="event-count" id="event-count">0 events selected</span>
+            </div>
+
+            <!-- Recurring Settings Panel -->
+            <div class="recurring-settings-panel">
+                <div class="recurring-header">
+                    <div class="info-icon">ℹ️</div>
+                    <div>
+                        <p><strong>Apply Recurring Pattern to All Events:</strong></p>
+                        <p class="recurring-desc">Select a repeat pattern to apply to all selected events</p>
+                    </div>
+                </div>
+                <div class="recurring-radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="recurring-all" value="none" checked onchange="applyRecurringToAll('none')">
+                        <span>No Repeat</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="recurring-all" value="weekly" onchange="applyRecurringToAll('weekly')">
+                        <span>Weekly</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="recurring-all" value="daily" onchange="applyRecurringToAll('daily')">
+                        <span>Daily (Mon-Fri)</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="recurring-all" value="custom" onchange="applyRecurringToAll('custom')">
+                        <span>Custom Day</span>
+                    </label>
+                </div>
+                <div id="custom-day-selector" class="custom-day-selector hidden">
+                    <select id="custom-recurring-day" class="recurring-select" onchange="applyRecurringToAll('custom')">
+                        <option value="">-- Select Day --</option>
+                        <option value="MONDAY">Every Monday</option>
+                        <option value="TUESDAY">Every Tuesday</option>
+                        <option value="WEDNESDAY">Every Wednesday</option>
+                        <option value="THURSDAY">Every Thursday</option>
+                        <option value="FRIDAY">Every Friday</option>
+                        <option value="SATURDAY">Every Saturday</option>
+                        <option value="SUNDAY">Every Sunday</option>
+                    </select>
+                </div>
+            </div>
+
+
+            <div class="table-container">
+                <table id="events-table" class="events-table">
+                    <thead id="table-header"></thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="goBackToMapping()">Back to Mapping</button>
+                <button class="btn btn-success" onclick="generateCalendar()">Generate Calendar</button>
+            </div>
+        </section>
+
+        <!-- Step 4: Download -->
+        <section id="download-section" class="section hidden">
+            <h2>✅ Calendar Generated!</h2>
+            
+            <div class="success-box">
+                <div class="success-icon">🎉</div>
+                <p><strong id="event-total">0</strong> events added to your calendar</p>
+            </div>
+
+            <!-- Calendar Preview -->
+            <div class="calendar-preview-section">
+                <h3>📅 Preview Your Calendar</h3>
+                <div class="calendar-preview" id="calendar-preview">
+                    <div class="preview-loading">Loading calendar preview...</div>
+                </div>
+            </div>
+
+            <div class="calendar-settings">
+                <div class="setting-row">
+                    <label>Calendar Name:</label>
+                    <input type="text" id="calendar-name" value="My Timetable" class="text-input">
+                </div>
+                <div class="setting-row">
+                    <label>Timezone:</label>
+                    <select id="timezone" class="mapping-select">
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">Eastern Time</option>
+                        <option value="America/Chicago">Central Time</option>
+                        <option value="America/Denver">Mountain Time</option>
+                        <option value="America/Los_Angeles">Pacific Time</option>
+                        <option value="Europe/London">London</option>
+                        <option value="Europe/Paris">Paris</option>
+                        <option value="Asia/Tokyo">Tokyo</option>
+                        <option value="Australia/Sydney">Sydney</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label for="reminder-minutes">Reminder Time (minutes before event):</label>
+                    <div class="reminder-input-group">
+                        <input type="number" id="reminder-minutes" value="45" min="0" max="1440" class="text-input" onchange="updateReminderPreview()">
+                        <span class="reminder-preview" id="reminder-preview">45 minutes before</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="download-options">
+                <h3>Choose Your Option:</h3>
+                <div class="option-cards">
+                    <div class="option-card">
+                        <div class="option-icon">📥</div>
+                        <h4>One-Time Download</h4>
+                        <p>Download a static .ics file</p>
+                        <button class="btn btn-primary" onclick="downloadCalendar()">
+                            Download Now
+                        </button>
+                    </div>
+                    <div class="option-card">
+                        <div class="option-icon">🔗</div>
+                        <h4>Live Subscription</h4>
+                        <p>Get a URL that auto-updates</p>
+                        <button class="btn btn-success" onclick="showSubscriptionForm()">
+                            Create Subscription
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="startOver()">Generate Another</button>
+            </div>
+        </section>
+
+        <!-- Subscription Form -->
+        <section id="subscription-section" class="section hidden">
+            <h2>🔗 Create Live Subscription</h2>
+            <p class="section-description">Create a dynamic calendar link that updates automatically</p>
+
+            <div class="subscription-form">
+                <div class="form-row">
+                    <label>Subscription Name: *</label>
+                    <input type="text" id="sub-name" class="text-input" placeholder="My Class Schedule" required>
+                </div>
+                <div class="form-row">
+                    <label>Description:</label>
+                    <textarea id="sub-description" class="text-area" rows="3" placeholder="Description of this calendar..."></textarea>
+                </div>
+                <div class="form-row">
+                    <label>Source URL (optional):</label>
+                    <input type="url" id="sub-source-url" class="text-input" placeholder="https://example.com/timetable.xlsx">
+                    <small class="form-hint">If provided, the calendar will fetch from this URL on each request</small>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="cancelSubscription()">Cancel</button>
+                <button class="btn btn-success" onclick="createSubscription()">
+                    🔗 Create Subscription Link
+                </button>
+            </div>
+        </section>
+
+        <!-- Subscription Success -->
+        <section id="subscription-success-section" class="section hidden">
+            <h2>🎉 Subscription Created!</h2>
+
+            <div class="success-box">
+                <div class="success-icon">✅</div>
+                <p>Your live calendar subscription is ready</p>
+            </div>
+
+            <div class="subscription-details">
+                <h3>Your Subscription Link:</h3>
+                <div class="link-box">
+                    <input type="text" id="subscription-url" class="link-input" readonly>
+                    <button class="btn btn-primary" onclick="copySubscriptionLink()">
+                        📋 Copy Link
+                    </button>
+                </div>
+                <p class="link-hint">Add this URL to your calendar app (Google Calendar, Outlook, Apple Calendar)</p>
+
+                <div class="how-to-subscribe">
+                    <h4>How to Subscribe:</h4>
+                    <div class="instructions">
+                        <div class="instruction-item">
+                            <strong>Google Calendar:</strong>
+                            <ol>
+                                <li>Open Google Calendar</li>
+                                <li>Click the "+" next to "Other calendars"</li>
+                                <li>Select "From URL"</li>
+                                <li>Paste your subscription link</li>
+                            </ol>
+                        </div>
+                        <div class="instruction-item">
+                            <strong>Apple Calendar:</strong>
+                            <ol>
+                                <li>Open Calendar app</li>
+                                <li>File → New Calendar Subscription</li>
+                                <li>Paste your subscription link</li>
+                                <li>Click Subscribe</li>
+                            </ol>
+                        </div>
+                        <div class="instruction-item">
+                            <strong>Outlook:</strong>
+                            <ol>
+                                <li>Open Outlook Calendar</li>
+                                <li>Add calendar → From internet</li>
+                                <li>Paste your subscription link</li>
+                                <li>Click Import</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="startOver()">Create Another</button>
+                <button class="btn btn-primary" onclick="viewSubscriptions()">
+                    View All Subscriptions
+                </button>
+            </div>
+        </section>
+
+        <!-- Subscriptions List -->
+        <section id="subscriptions-list-section" class="section hidden">
+            <h2>📚 Your Subscriptions</h2>
+            
+            <div id="subscriptions-container" class="subscriptions-grid">
+                <!-- Subscriptions will be loaded here -->
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-secondary" onclick="startOver()">Create New</button>
+            </div>
+        </section>
+
+        <!-- Loading Spinner -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <footer>
+        <p>Built with FastAPI backend • <a href="http://localhost:8000/api/v1/docs" target="_blank">API Docs</a></p>
+    </footer>
+
+    <script src="app.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>

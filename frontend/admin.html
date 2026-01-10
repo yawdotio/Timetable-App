@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Timetable Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📅 Timetable Generator - Admin Panel</h1>
+            <p class="subtitle">Manage timetables and uploads</p>
+            <div class="header-actions">
+                <button class="btn btn-small btn-secondary" onclick="window.location.href='index.html'">
+                    ← Back to Home
+                </button>
+                <button class="btn btn-small btn-secondary" id="logout-btn" onclick="adminLogout()" style="display:none;">
+                    🚪 Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Admin Login Panel -->
+        <div id="admin-login-section" class="admin-login-section">
+            <div class="admin-login-container">
+                <h2>Admin Login</h2>
+                <p class="admin-login-subtitle">Enter your credentials to access the admin panel</p>
+                <div class="admin-login-form">
+                    <div class="form-group">
+                        <label for="admin-username">Username</label>
+                        <input type="text" id="admin-username" placeholder="Enter username" class="text-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-password">Password</label>
+                        <input type="password" id="admin-password" placeholder="Enter password" class="text-input">
+                    </div>
+                    <div class="admin-login-actions">
+                        <button class="btn btn-primary" onclick="adminLogin()">Login</button>
+                        <button class="btn btn-secondary" onclick="window.location.href='index.html'">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Panel (After Login) -->
+        <div id="admin-panel-section" class="admin-panel-section hidden">
+            
+            <!-- Step 1: File Upload -->
+            <section id="upload-section" class="section">
+                <h2>Step 1: Upload Your Timetable</h2>
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-icon">📁</div>
+                    <p>Drag & drop your file here or click to browse</p>
+                    <p class="upload-hint">Supports: PDF, Excel (.xlsx, .xls), CSV</p>
+                    <input type="file" id="file-input" accept=".pdf,.xlsx,.xls,.csv" hidden>
+                    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                        Choose File
+                    </button>
+                </div>
+
+                <div class="or-divider">
+                    <span>or</span>
+                </div>
+
+                <div class="link-upload">
+                    <label for="url-input">Load using a link</label>
+                    <div class="link-upload-row">
+                        <input type="url" id="url-input" class="text-input" placeholder="https://example.com/timetable.xlsx">
+                        <button class="btn btn-secondary" onclick="handleUrlUpload()">Use Link</button>
+                    </div>
+                    <p class="upload-hint">Paste a direct link to a PDF, Excel, or CSV file. We will fetch and parse it via the API.</p>
+                </div>
+                <div id="upload-status" class="status-message"></div>
+            </section>
+
+            <!-- Step 2: Column Mapping -->
+            <section id="mapping-section" class="section hidden">
+                <h2>Step 2: Map Your Columns</h2>
+                <p class="section-description">Tell us which column contains what information</p>
+                <div id="sheet-selector" class="sheet-selector hidden"></div>
+                
+                <!-- Base Date Selector -->
+                <div class="base-date-selector">
+                    <div class="info-icon">📅</div>
+                    <div class="base-date-content">
+                        <label for="base-date-input">
+                            <strong>Start Week Date (Optional):</strong>
+                        </label>
+                        <input type="date" id="base-date-input" class="date-input">
+                        <p class="base-date-hint">
+                            If your timetable has day names (Monday, Tuesday, etc.), select a starting date. 
+                            The system will automatically calculate the next occurrence of each weekday.<br>
+                            <strong>Example:</strong> If you select Jan 10, 2026 (Friday), then Monday events → Jan 13, Tuesday events → Jan 14, etc.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="mapping-grid">
+                    <div class="mapping-row">
+                        <label>Date Column:</label>
+                        <select id="date-column" class="mapping-select">
+                            <option value="">-- Select Column --</option>
+                        </select>
+                    </div>
+                    <div class="mapping-row">
+                        <label>Time Column:</label>
+                        <select id="time-column" class="mapping-select">
+                            <option value="">-- Select Column --</option>
+                        </select>
+                    </div>
+                    <div class="mapping-row">
+                        <label>Event Title Column: *</label>
+                        <select id="title-column" class="mapping-select" required>
+                            <option value="">-- Select Column --</option>
+                        </select>
+                    </div>
+                    <div class="mapping-row">
+                        <label>Location Column:</label>
+                        <select id="location-column" class="mapping-select">
+                            <option value="">-- Select Column --</option>
+                        </select>
+                    </div>
+                    <div class="mapping-row">
+                        <label>End Time Column:</label>
+                        <select id="end-time-column" class="mapping-select">
+                            <option value="">-- Select Column --</option>
+                        </select>
+                    </div>
+                    <div class="mapping-row">
+                        <label>Description Column:</label>
+                        <select id="description-column" class="mapping-select">
+                            <option value="">-- Select Column --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="resetUpload()">Start Over</button>
+                    <div class="save-upload-row">
+                        <input type="text" id="save-upload-name" class="text-input" placeholder="Name this upload (e.g., Fall Schedule)">
+                        <button class="btn btn-secondary" onclick="saveCurrentUpload()">Save to Gallery</button>
+                    </div>
+                    <button class="btn btn-primary" onclick="applyMapping()">Apply Mapping</button>
+                </div>
+            </section>
+
+            <!-- Step 3: Event Selection -->
+            <section id="selection-section" class="section hidden">
+                <h2>Step 3: Review & Save Events</h2>
+                <p class="section-description">Review events and save this timetable</p>
+                
+                <!-- Course Level Selector -->
+                <div class="level-filter-section">
+                    <div class="level-filter">
+                        <label><strong>Filter by Level:</strong></label>
+                        <div class="level-buttons">
+                            <button class="level-btn active" onclick="filterByLevel('all')" data-level="all">All Levels</button>
+                            <button class="level-btn" onclick="filterByLevel(100)" data-level="100">Level 100</button>
+                            <button class="level-btn" onclick="filterByLevel(200)" data-level="200">Level 200</button>
+                            <button class="level-btn" onclick="filterByLevel(300)" data-level="300">Level 300</button>
+                            <button class="level-btn" onclick="filterByLevel(400)" data-level="400">Level 400</button>
+                            <button class="level-btn" onclick="filterByLevel(500)" data-level="500">Level 500</button>
+                            <button class="level-btn" onclick="filterByLevel(600)" data-level="600">Level 600</button>
+                            <button class="level-btn" onclick="filterByLevel(700)" data-level="700">Level 700</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search and Filter -->
+                <div class="search-filter-section">
+                    <input type="text" id="course-search" class="course-search" placeholder="🔍 Search courses by name, venue, or code..." onkeyup="filterAndSearchEvents()">
+                    <div class="search-results-info" id="search-results-info"></div>
+                </div>
+
+                <!-- Events Table -->
+                <div class="events-table-container">
+                    <div class="events-controls">
+                        <button class="btn btn-small btn-secondary" onclick="selectAllEvents()">Select All (Visible)</button>
+                        <button class="btn btn-small btn-secondary" onclick="deselectAllEvents()">Deselect All (Visible)</button>
+                        <span id="event-count" class="event-count">0 events selected</span>
+                    </div>
+                    <table class="events-table">
+                        <thead id="table-header"></thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="resetUpload()">Upload Different File</button>
+                    <button class="btn btn-primary" onclick="generateCalendar()">Generate Calendar</button>
+                </div>
+            </section>
+
+            <!-- Step 4: Calendar Preferences & Download -->
+            <section id="calendar-section" class="section hidden">
+                <h2>Step 4: Calendar Settings</h2>
+                <p class="section-description">Customize your calendar</p>
+
+                <!-- Recurring Section -->
+                <div class="recurring-section">
+                    <h3>Recurring Events</h3>
+                    <p class="section-description">How should repeating events be handled?</p>
+                    <div class="recurring-options">
+                        <div class="radio-option">
+                            <input type="radio" id="recurring-none" name="recurring" value="none" checked onchange="updateRecurringPreview()">
+                            <label for="recurring-none">Single Occurrence Only</label>
+                            <p class="option-description">Each event will appear only once, on the first date it occurs</p>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="recurring-daily" name="recurring" value="daily" onchange="updateRecurringPreview()">
+                            <label for="recurring-daily">Daily</label>
+                            <p class="option-description">Events will repeat every day</p>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="recurring-weekly" name="recurring" value="weekly" onchange="updateRecurringPreview()">
+                            <label for="recurring-weekly">Weekly</label>
+                            <p class="option-description">Events will repeat every week (default for most timetables)</p>
+                        </div>
+                        <div class="radio-option">
+                            <input type="radio" id="recurring-monthly" name="recurring" value="monthly" onchange="updateRecurringPreview()">
+                            <label for="recurring-monthly">Monthly</label>
+                            <p class="option-description">Events will repeat every month</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reminder Settings -->
+                <div class="reminder-section">
+                    <h3>Reminder Notification</h3>
+                    <p class="section-description">Get notified before each event</p>
+                    <div class="reminder-input-group">
+                        <label for="reminder-minutes">Remind me</label>
+                        <input type="number" id="reminder-minutes" min="0" max="1440" value="0" class="text-input" onchange="updateReminderPreview()">
+                        <label>minutes before the event</label>
+                    </div>
+                    <div id="reminder-preview" class="reminder-preview"></div>
+                </div>
+
+                <!-- Download and Subscribe -->
+                <div class="download-section">
+                    <h3>Download or Subscribe</h3>
+                    <p class="section-description">Get your calendar file</p>
+                    <div class="download-actions">
+                        <button class="btn btn-primary" onclick="downloadCalendar()">
+                            📥 Download as ICS File
+                        </button>
+                        <button class="btn btn-secondary" onclick="showSubscriptionInfo()">
+                            📌 Get Subscription Link
+                        </button>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="resetUpload()">Start Over</button>
+                </div>
+            </section>
+
+            <!-- Manage Calendars -->
+            <section id="manage-section" class="section">
+                <h2>Manage Saved Timetables</h2>
+                <div class="admin-tabs">
+                    <button class="admin-tab-btn active" onclick="switchAdminTab('manage-uploads')">Manage Uploads</button>
+                    <button class="admin-tab-btn" onclick="switchAdminTab('manage-calendars')">Manage Calendars</button>
+                </div>
+                <div id="manage-uploads-tab" class="admin-tab-content active">
+                    <h4>All Uploaded Files</h4>
+                    <div id="admin-uploads-list" class="admin-list"></div>
+                </div>
+                <div id="manage-calendars-tab" class="admin-tab-content">
+                    <h4>All Saved Calendars</h4>
+                    <div id="admin-calendars-list" class="admin-list"></div>
+                </div>
+            </section>
+        </div>
+
+        <div id="status-message"></div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="admin.js"></script>
+    <script>
+        // On admin page load, restore session if available
+        document.addEventListener('DOMContentLoaded', () => {
+            restoreAdminSession();
+        });
+    </script>
+</body>
+</html>
