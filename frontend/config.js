@@ -40,8 +40,16 @@ async function loadConfig() {
     if (applyEnvConfigIfAvailable()) return CONFIG;
 
     // 2) Try runtime config endpoint (works when frontend shares domain with backend)
+    // Use a very short timeout since this is likely a static site on different domain
     try {
-        const response = await fetch('/api/v1/config');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 second timeout
+        
+        const response = await fetch('/api/v1/config', { 
+            signal: controller.signal 
+        });
+        clearTimeout(timeoutId);
+        
         if (response.ok) {
             const data = await response.json();
             CONFIG = {
@@ -55,7 +63,10 @@ async function loadConfig() {
         }
         console.warn('[config] /api/v1/config returned non-200, using defaults');
     } catch (error) {
-        console.warn('[config] Error loading /api/v1/config:', error, 'Using defaults');
+        // Expected when frontend is on different domain (Vercel) than backend
+        if (error.name !== 'AbortError') {
+            console.warn('[config] Error loading /api/v1/config:', error.message);
+        }
     }
 
     // 3) Fall back to baked defaults

@@ -9,7 +9,6 @@ import sys
 import logging
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from app.core.database import Base  # Import SQLAlchemy Base where models are registered
 
 # Load environment variables from .env file
 load_dotenv()
@@ -38,14 +37,26 @@ def init_db():
         logger.info(f"Connecting to database: {database_url.split('@')[1] if '@' in database_url else 'hidden'}")
         engine = create_engine(database_url)
         
-        # 4. Create all tables defined in your models
+        # 4. Import models BEFORE creating tables to register them with Base metadata
+        from app.core.database import Base  # Import SQLAlchemy Base where models are registered
+        from app.models import subscription  # noqa: F401 - Import all models to register them
+        
+        # 5. Create all tables defined in your models
         # This function checks "IF NOT EXISTS" automatically
         logger.info("Creating tables...")
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Tables created successfully!")
         
+        # 6. Verify tables were created
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        logger.info(f"Tables in database: {tables}")
+        
     except Exception as e:
         logger.error(f"❌ Error initializing database: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":

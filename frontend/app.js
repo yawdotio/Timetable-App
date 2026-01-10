@@ -53,6 +53,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     DEFAULT_CALENDAR_NAME = CONFIG.DEFAULT_CALENDAR_NAME;
     DEFAULT_TIMEZONE = CONFIG.DEFAULT_TIMEZONE;
     
+    console.log('[app.js] Configuration loaded:', { API_BASE_URL, DEFAULT_CALENDAR_NAME, DEFAULT_TIMEZONE });
+    
     // Initialize calendar name from environment configuration
     const calendarNameInput = document.getElementById('calendar-name');
     if (calendarNameInput && DEFAULT_CALENDAR_NAME) {

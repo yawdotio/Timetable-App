@@ -278,6 +278,8 @@ async function uploadFile(file, sheetName = null) {
         return;
     }
     
+    console.log('[uploadFile] Using API_BASE_URL:', API_BASE_URL);
+    
     const formData = new FormData();
     formData.append('file', file);
     if (sheetName) {
@@ -288,7 +290,10 @@ async function uploadFile(file, sheetName = null) {
         showStatus('info', '📤 Uploading file...');
         showLoading('upload-area', true);
         
-        const response = await fetch(`${API_BASE_URL}/upload/file`, {
+        const uploadUrl = `${API_BASE_URL}/upload/file`;
+        console.log('[uploadFile] Uploading to:', uploadUrl);
+        
+        const response = await fetch(uploadUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Basic ${adminState.credentials}`

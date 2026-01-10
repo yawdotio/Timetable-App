@@ -395,7 +395,7 @@ async def list_saved_uploads(
             "name": s.name,
             "filename": s.filename,
             "file_type": s.file_type,
-            "created_at": str(s.created_at) if s.created_at else None,
+            "created_at": str(s.created_at) if hasattr(s, 'created_at') and s.created_at else None,
         }
         for s in items
     ]
