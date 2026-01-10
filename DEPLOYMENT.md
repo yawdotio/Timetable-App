@@ -69,46 +69,32 @@ The frontend is static files under [frontend/](frontend/). It reads runtime valu
 ### Option 1: Netlify (Recommended)
 
 1. Create a new site from your repository
-2. Set the following environment variables in Netlify UI:
-   - `API_BASE_URL` → your Cloud Run URL ending with `/api/v1`
-   - `CALENDAR_NAME` → default display name (optional)
-   - `TIMEZONE` → default timezone (optional)
-3. Build settings:
-   - Build command:
-     ```bash
-     bash -lc "echo // Auto-generated > frontend/env-config.js && \
-     echo window.ENV_API_BASE_URL='\"$API_BASE_URL\"'; >> frontend/env-config.js && \
-     echo window.ENV_CALENDAR_NAME='\"${CALENDAR_NAME:-My Timetable}\"'; >> frontend/env-config.js && \
-     echo window.ENV_TIMEZONE='\"${TIMEZONE:-UTC}\"'; >> frontend/env-config.js"
-     ```
-   - Publish directory: `frontend`
-4. Deploy and test the app. If you see CORS errors, update backend `CORS_ORIGINS` to include your Netlify domain.
-
-Alternative (Netlify `netlify.toml`):
-```toml
-[build]
-  publish = "frontend"
-  command = "bash scripts/gen-env.sh"
-```
-And create `scripts/gen-env.sh` to write [frontend/env-config.js](frontend/env-config.js) using `$API_BASE_URL`, `$CALENDAR_NAME`, `$TIMEZONE`.
+2. Set the following environment variables in Netlify UI → Project Settings → Build & Deploy → Environment:
+   - `API_BASE_URL` → your Cloud Run URL ending with `/api/v1` (required)
+   - `CALENDAR_NAME` → default display name (optional, default: "My Timetable")
+   - `TIMEZONE` → default timezone (optional, default: "UTC")
+3. The repo now includes `netlify.toml` which automatically uses the correct build command.
+4. **Deploy**: Push to main branch; Netlify will auto-build and run `bash scripts/gen-env.sh`
+5. **Verify**: Check build logs to confirm `env-config.js` was generated with your env vars. If you see `[ERROR] API_BASE_URL environment variable is not set`, check Netlify environment variables.
+6. If CORS errors appear after deploy, update backend CORS_ORIGINS to include your Netlify domain.
 
 ### Option 2: Vercel
 
 1. Import the repository into Vercel
 2. Under Project Settings → Environment Variables, add:
-   - `API_BASE_URL`
+   - `API_BASE_URL` (required) → your Cloud Run URL ending with `/api/v1`
    - `CALENDAR_NAME` (optional)
    - `TIMEZONE` (optional)
-3. Build & Output Settings:
-   - Build Command:
-     ```bash
-     bash -lc "echo // Auto-generated > frontend/env-config.js && \
-     echo window.ENV_API_BASE_URL='\"$API_BASE_URL\"'; >> frontend/env-config.js && \
-     echo window.ENV_CALENDAR_NAME='\"${CALENDAR_NAME:-My Timetable}\"'; >> frontend/env-config.js && \
-     echo window.ENV_TIMEZONE='\"${TIMEZONE:-UTC}\"'; >> frontend/env-config.js"
-     ```
-   - Output Directory: `frontend`
-4. Deploy. Ensure backend `CORS_ORIGINS` includes your Vercel domain.
+3. The repo now includes `vercel.json` which sets build command and output directory.
+4. **Deploy**: Push to main branch; Vercel will run `bash scripts/gen-env.sh`
+5. **Verify**: Check build logs. You should see:
+   ```
+   [BUILD] Generating frontend/env-config.js...
+   [BUILD] API_BASE_URL: https://your-cloud-run.run.app/api/v1
+   [BUILD] ✓ Successfully wrote frontend/env-config.js
+   ```
+   If the build fails with `[ERROR] API_BASE_URL environment variable is not set`, check Vercel project settings.
+6. If CORS errors appear, update backend CORS_ORIGINS to include your Vercel domain.
 
 ### Option 3: GitHub Pages (Simple)
 

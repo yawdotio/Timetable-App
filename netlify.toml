@@ -1,0 +1,8 @@
+[build]
+  publish = "frontend"
+  command = "bash scripts/gen-env.sh"
+
+[build.environment]
+  API_BASE_URL = "API_BASE_URL"
+  CALENDAR_NAME = "CALENDAR_NAME"
+  TIMEZONE = "TIMEZONE"

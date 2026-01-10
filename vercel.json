@@ -1,0 +1,9 @@
+{
+  "buildCommand": "bash scripts/gen-env.sh",
+  "outputDirectory": "frontend",
+  "env": {
+    "API_BASE_URL": "@API_BASE_URL",
+    "CALENDAR_NAME": "@CALENDAR_NAME",
+    "TIMEZONE": "@TIMEZONE"
+  }
+}
