@@ -341,8 +341,17 @@
     </div>
 
     <footer>
-        <p>Built with FastAPI backend • <a href="/api/v1/docs" target="_blank">API Docs</a></p>
+        <p>Built with FastAPI backend • <a id="api-docs-link" href="#" target="_blank">API Docs</a></p>
     </footer>
+    <script>
+        // Dynamically set API Docs link based on API_BASE_URL
+        document.addEventListener('DOMContentLoaded', () => {
+            const link = document.getElementById('api-docs-link');
+            if (link && CONFIG && CONFIG.API_BASE_URL) {
+                link.href = CONFIG.API_BASE_URL.replace('/api/v1', '') + '/api/v1/docs';
+            }
+        });
+    </script>
 
     <script src="app.js"></script>
     <script src="admin.js"></script>
