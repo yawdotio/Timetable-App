@@ -3,7 +3,7 @@ Calendar generation utility using icalendar library
 """
 from icalendar import Calendar, Event as ICalEvent
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import pytz
 from dateutil import parser as date_parser
 
@@ -16,7 +16,8 @@ class CalendarGenerator:
     
     def _merge_adjacent_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Merge adjacent time slots for the same course, date, and venue
+        Merge adjacent time slots for the same course, date, and venue.
+        Allow merging if times are adjacent or within 15 minutes of each other.
         
         Args:
             events: List of event dictionaries
@@ -45,6 +46,28 @@ class CalendarGenerator:
                 return {'start': single_match.group(1), 'end': None}
             
             return None
+        
+        def time_to_minutes(time_str):
+            """Convert HH:MM to minutes since midnight"""
+            if not time_str:
+                return None
+            try:
+                h, m = map(int, time_str.split(':'))
+                return h * 60 + m
+            except:
+                return None
+        
+        def can_merge_times(end_time_str, next_start_str, max_gap_minutes=15):
+            """Check if two times can be merged (within max_gap_minutes)"""
+            end_mins = time_to_minutes(end_time_str)
+            next_mins = time_to_minutes(next_start_str)
+            
+            if end_mins is None or next_mins is None:
+                return False
+            
+            # Gap should be non-negative and <= max_gap_minutes
+            gap = next_mins - end_mins
+            return 0 <= gap <= max_gap_minutes
         
         # Group events by date, title, and location
         grouped = {}
@@ -81,13 +104,13 @@ class CalendarGenerator:
                 current = with_times[i].copy()
                 end_time = current['_parsed_time']['end'] or current['_parsed_time']['start']
                 
-                # Look ahead for adjacent events
+                # Look ahead for adjacent events (within 15-minute gap)
                 j = i + 1
                 while j < len(with_times):
                     next_event = with_times[j]
                     
-                    # Check if next event starts where current ends
-                    if end_time and next_event['_parsed_time']['start'] == end_time:
+                    # Check if next event starts within 15 minutes of current end
+                    if end_time and can_merge_times(end_time, next_event['_parsed_time']['start'], max_gap_minutes=15):
                         # Merge!
                         end_time = next_event['_parsed_time']['end'] or next_event['_parsed_time']['start']
                         j += 1
@@ -176,31 +199,28 @@ class CalendarGenerator:
         else:
             start_time = time_str
         
-        # Parse date and start time
-        start_dt = self._parse_datetime(
-            event_data.get('date'),
-            start_time,
-            tz
-        )
-        
-        # Determine end time (priority: time range > end_time field > 1 hour default)
-        if end_time_from_range:
-            # Use end time from time range
-            end_dt = self._parse_datetime(
-                event_data.get('date'),
-                end_time_from_range,
-                tz
-            )
-        elif event_data.get('end_time'):
-            # Use explicit end_time field
-            end_dt = self._parse_datetime(
-                event_data.get('date'),
-                event_data.get('end_time'),
-                tz
+        # Build start/end datetimes with AM/PM inference
+        if start_time and end_time_from_range:
+            start_dt, end_dt = self._parse_time_range_with_inference(
+                event_data.get('date'), start_time, end_time_from_range, tz
             )
         else:
-            # Default to 1 hour duration
-            end_dt = start_dt + self.default_duration
+            # Parse date and start time
+            start_dt = self._parse_datetime(
+                event_data.get('date'),
+                start_time,
+                tz
+            )
+            # Determine end time (priority: explicit end_time > 1 hour default)
+            if event_data.get('end_time'):
+                end_dt = self._parse_datetime(
+                    event_data.get('date'),
+                    event_data.get('end_time'),
+                    tz
+                )
+            else:
+                # Default to 1 hour duration
+                end_dt = start_dt + self.default_duration
         
         # Add required fields
         event.add('summary', event_data.get('title', 'Untitled Event'))
@@ -258,6 +278,63 @@ class CalendarGenerator:
             event.add_component(alarm)
         
         return event
+
+    def _has_ampm(self, s: str) -> bool:
+        return bool(s) and ('am' in s.lower() or 'pm' in s.lower())
+
+    def _infer_hour(self, hour: int, has_ampm: bool) -> int:
+        """
+        Infer AM/PM for ambiguous 12-hour times.
+        - If AM/PM is present or 24-hour input (hour >= 12), keep as-is
+        - Prefer morning for 7–11; noon (12) stays 12
+        - Infer PM for 1–6
+        """
+        if has_ampm or hour >= 12:
+            return hour
+        if 7 <= hour <= 11 or hour == 12:
+            return hour
+        if 1 <= hour <= 6:
+            return hour + 12
+        return hour
+
+    def _parse_time_basic(self, time_str: str) -> Tuple[int, int]:
+        t = date_parser.parse(time_str, fuzzy=True)
+        return t.hour, t.minute
+
+    def _build_dt(self, date_obj: datetime, hour: int, minute: int, tz) -> datetime:
+        dt = date_obj.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if tz:
+            if dt.tzinfo is None:
+                dt = tz.localize(dt)
+            else:
+                dt = dt.astimezone(tz)
+        return dt
+
+    def _parse_time_range_with_inference(self, date_str: str, start_str: str, end_str: str, tz) -> Tuple[datetime, datetime]:
+        date_obj = date_parser.parse(date_str, fuzzy=True)
+        sh, sm = self._parse_time_basic(start_str)
+        eh, em = self._parse_time_basic(end_str)
+
+        sh = self._infer_hour(sh, self._has_ampm(start_str))
+        eh = self._infer_hour(eh, self._has_ampm(end_str))
+
+        start_dt = self._build_dt(date_obj, sh, sm, tz)
+        end_dt = self._build_dt(date_obj, eh, em, tz)
+
+        # If both times are ambiguous (no AM/PM) and end <= start, push end to PM
+        if end_dt <= start_dt and not self._has_ampm(start_str) and not self._has_ampm(end_str):
+            if eh < 12:
+                eh += 12
+                end_dt = self._build_dt(date_obj, eh, em, tz)
+
+        # Cap duration to at most 2 hours for day-period starts when both times are ambiguous
+        if not self._has_ampm(start_str) and not self._has_ampm(end_str):
+            max_duration = timedelta(hours=2)
+            # Consider 'day period' as starts before 19:00 (7 PM)
+            if start_dt.hour < 19 and (end_dt - start_dt) > max_duration:
+                end_dt = start_dt + max_duration
+
+        return start_dt, end_dt
     
     def _parse_datetime(self, date_str: str, time_str: str = None, tz=None) -> datetime:
         """
@@ -281,10 +358,13 @@ class CalendarGenerator:
         if time_str:
             try:
                 # Extract time from string (handles "9:00 AM", "09:00", etc.)
-                time_obj = date_parser.parse(time_str, fuzzy=True)
+                t = date_parser.parse(time_str, fuzzy=True)
+                hour, minute = t.hour, t.minute
+                has_ampm = self._has_ampm(time_str)
+                hour = self._infer_hour(hour, has_ampm)
                 date_obj = date_obj.replace(
-                    hour=time_obj.hour,
-                    minute=time_obj.minute,
+                    hour=hour,
+                    minute=minute,
                     second=0,
                     microsecond=0
                 )

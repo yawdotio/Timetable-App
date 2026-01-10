@@ -3,31 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timetable Generator</title>
+    <title>Timetable Generator - Create Your Calendar</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>📅 Timetable Generator</h1>
-            <p class="subtitle">Create calendar subscriptions from your timetable</p>
-            <div class="header-actions">
-                <button class="btn btn-small btn-secondary" onclick="viewSubscriptionsFromHeader()">
-                    📚 My Subscriptions
-                </button>
+            <div class="header-content">
+                <div>
+                    <h1>📅 Timetable to Calendar</h1>
+                    <p class="subtitle">Import your timetable into Google Calendar, Outlook, or Apple Calendar in minutes</p>
+                </div>
+                <button class="info-btn" onclick="openTipsModal()" title="Helpful Tips">ℹ️</button>
             </div>
         </header>
+        <!-- Quick Start Guide & Tips are now in modal popup -->
 
         <!-- Step 1: Choose a Timetable -->
         <section id="gallery-section" class="section">
-            <h2>Step 1: Choose Your Timetable</h2>
-            <p class="section-description">Select a saved timetable to create a personalized calendar</p>
+            <h2>📚 Available Timetables</h2>
+            <p class="section-description">Select a timetable below to get started</p>
             <div id="gallery-list" class="gallery-list"></div>
         </section>
 
         <!-- Step 2: Column Mapping -->
         <section id="mapping-section" class="section hidden">
-            <h2>Step 2: Map Your Columns</h2>
+            <h2>Step 2: Configure Your Timetable</h2>
             <p class="section-description">Tell us which column contains what information</p>
             <div id="sheet-selector" class="sheet-selector hidden"></div>
             
@@ -88,10 +89,6 @@
 
             <div class="button-group">
                 <button class="btn btn-secondary" onclick="resetUpload()">Start Over</button>
-                <div class="save-upload-row">
-                    <input type="text" id="save-upload-name" class="text-input" placeholder="Name this upload (e.g., Fall Schedule)">
-                    <button class="btn btn-secondary" onclick="saveCurrentUpload()">Save to Gallery</button>
-                </div>
                 <button class="btn btn-primary" onclick="applyMapping()">Apply Mapping</button>
             </div>
         </section>
@@ -231,22 +228,30 @@
             </div>
 
             <div class="download-options">
+                <div class="import-reminder">
+                    <div class="reminder-icon">⚠️</div>
+                    <div class="reminder-content">
+                        <h4>Before You Import</h4>
+                        <p>Make sure you've created a new calendar in your calendar app first! This makes it easy to delete the entire calendar at the end of the semester.</p>
+                        <details>
+                            <summary>Need help? →</summary>
+                            <div class="reminder-details">
+                                <p><strong>Google Calendar:</strong> Click "+" next to "Other calendars" → "Create new calendar"</p>
+                                <p><strong>Outlook:</strong> Click "+" next to calendar list → "Create new calendar"</p>
+                                <p><strong>Apple Calendar:</strong> File → New Calendar</p>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
                 <h3>Choose Your Option:</h3>
                 <div class="option-cards">
                     <div class="option-card">
                         <div class="option-icon">📥</div>
-                        <h4>One-Time Download</h4>
-                        <p>Download a static .ics file</p>
+                        <h4>Download Calendar</h4>
+                        <p>Download a static .ics file to import into your calendar</p>
                         <button class="btn btn-primary" onclick="downloadCalendar()">
                             Download Now
-                        </button>
-                    </div>
-                    <div class="option-card">
-                        <div class="option-icon">🔗</div>
-                        <h4>Live Subscription</h4>
-                        <p>Get a URL that auto-updates</p>
-                        <button class="btn btn-success" onclick="showSubscriptionForm()">
-                            Create Subscription
                         </button>
                     </div>
                 </div>
@@ -258,107 +263,72 @@
         </section>
 
         <!-- Subscription Form -->
-        <section id="subscription-section" class="section hidden">
-            <h2>🔗 Create Live Subscription</h2>
-            <p class="section-description">Create a dynamic calendar link that updates automatically</p>
-
-            <div class="subscription-form">
-                <div class="form-row">
-                    <label>Subscription Name: *</label>
-                    <input type="text" id="sub-name" class="text-input" placeholder="My Class Schedule" required>
-                </div>
-                <div class="form-row">
-                    <label>Description:</label>
-                    <textarea id="sub-description" class="text-area" rows="3" placeholder="Description of this calendar..."></textarea>
-                </div>
-                <div class="form-row">
-                    <label>Source URL (optional):</label>
-                    <input type="url" id="sub-source-url" class="text-input" placeholder="https://example.com/timetable.xlsx">
-                    <small class="form-hint">If provided, the calendar will fetch from this URL on each request</small>
-                </div>
-            </div>
-
-            <div class="button-group">
-                <button class="btn btn-secondary" onclick="cancelSubscription()">Cancel</button>
-                <button class="btn btn-success" onclick="createSubscription()">
-                    🔗 Create Subscription Link
-                </button>
-            </div>
-        </section>
+        <!-- Removed: Subscription functionality is no longer available -->
 
         <!-- Subscription Success -->
-        <section id="subscription-success-section" class="section hidden">
-            <h2>🎉 Subscription Created!</h2>
+        <!-- Removed: Subscription functionality is no longer available -->
 
-            <div class="success-box">
-                <div class="success-icon">✅</div>
-                <p>Your live calendar subscription is ready</p>
-            </div>
+        <!-- Subscriptions List -->
+        <!-- Removed: Subscription functionality is no longer available -->
 
-            <div class="subscription-details">
-                <h3>Your Subscription Link:</h3>
-                <div class="link-box">
-                    <input type="text" id="subscription-url" class="link-input" readonly>
-                    <button class="btn btn-primary" onclick="copySubscriptionLink()">
-                        📋 Copy Link
-                    </button>
+        <!-- Guide & Tips Modal -->
+        <div id="guide-modal" class="modal hidden">
+            <div class="modal-overlay" onclick="closeGuideModal()"></div>
+            <div class="modal-content guide-modal-content">
+                <div class="modal-header">
+                    <h2>🚀 Quick Start Guide</h2>
+                    <button class="modal-close" onclick="closeGuideModal()">✕</button>
                 </div>
-                <p class="link-hint">Add this URL to your calendar app (Google Calendar, Outlook, Apple Calendar)</p>
+                <div class="modal-body guide-modal-body">
+                    <p class="guide-intro">Follow these 3 simple steps to get your calendar ready:</p>
+                    
+                    <div class="steps-grid">
+                        <div class="step-card">
+                            <div class="step-number">1️⃣</div>
+                            <h3>Create a New Calendar</h3>
+                            <p>Before importing, create a new calendar in your calendar app. This makes it easy to delete it at the end of the semester.</p>
+                            <details>
+                                <summary>How to create a new calendar →</summary>
+                                <div class="guide-content">
+                                    <p><strong>Google Calendar:</strong> Click "+" next to "Other calendars" → "Create new calendar" → Name it (e.g., "Spring 2026")</p>
+                                    <p><strong>Outlook:</strong> Click "+" next to calendar list → "Create new calendar" → Select privacy level</p>
+                                    <p><strong>Apple Calendar:</strong> File → New Calendar → Choose account and name</p>
+                                </div>
+                            </details>
+                        </div>
 
-                <div class="how-to-subscribe">
-                    <h4>How to Subscribe:</h4>
-                    <div class="instructions">
-                        <div class="instruction-item">
-                            <strong>Google Calendar:</strong>
-                            <ol>
-                                <li>Open Google Calendar</li>
-                                <li>Click the "+" next to "Other calendars"</li>
-                                <li>Select "From URL"</li>
-                                <li>Paste your subscription link</li>
-                            </ol>
+                        <div class="step-card">
+                            <div class="step-number">2️⃣</div>
+                            <h3>Select Your Timetable</h3>
+                            <p>Browse the gallery below and pick the timetable that matches your schedule. You can filter by course level and search by name.</p>
                         </div>
-                        <div class="instruction-item">
-                            <strong>Apple Calendar:</strong>
-                            <ol>
-                                <li>Open Calendar app</li>
-                                <li>File → New Calendar Subscription</li>
-                                <li>Paste your subscription link</li>
-                                <li>Click Subscribe</li>
-                            </ol>
+
+                        <div class="step-card">
+                            <div class="step-number">3️⃣</div>
+                            <h3>Import to Your Calendar</h3>
+                            <p>Select the events you want, generate the calendar file, and import it into your new calendar. Done!</p>
+                            <details>
+                                <summary>How to import the file →</summary>
+                                <div class="guide-content">
+                                    <p><strong>Google Calendar:</strong> Settings → Import & Export → "Select file from your computer" → Choose the .ics file</p>
+                                    <p><strong>Outlook:</strong> File → Open & Export → "Import a file" → Choose the .ics file</p>
+                                    <p><strong>Apple Calendar:</strong> File → Import → Select the .ics file</p>
+                                </div>
+                            </details>
                         </div>
-                        <div class="instruction-item">
-                            <strong>Outlook:</strong>
-                            <ol>
-                                <li>Open Outlook Calendar</li>
-                                <li>Add calendar → From internet</li>
-                                <li>Paste your subscription link</li>
-                                <li>Click Import</li>
-                            </ol>
-                        </div>
+                    </div>
+
+                    <div class="tips-section-modal">
+                        <h3>💡 Helpful Tips</h3>
+                        <ul class="tips-list">
+                            <li><strong>Select Only What You Need:</strong> You can uncheck courses or labs you don't want in your calendar</li>
+                            <li><strong>Recurring Events:</strong> Set courses to repeat weekly or on specific days so they continue throughout the semester</li>
+                            <li><strong>Easy Cleanup:</strong> Since your timetable is in its own calendar, you can delete the entire calendar at semester's end</li>
+                        </ul>
                     </div>
                 </div>
             </div>
-
-            <div class="button-group">
-                <button class="btn btn-secondary" onclick="startOver()">Create Another</button>
-                <button class="btn btn-primary" onclick="viewSubscriptions()">
-                    View All Subscriptions
-                </button>
-            </div>
-        </section>
-
-        <!-- Subscriptions List -->
-        <section id="subscriptions-list-section" class="section hidden">
-            <h2>📚 Your Subscriptions</h2>
-            
-            <div id="subscriptions-container" class="subscriptions-grid">
-                <!-- Subscriptions will be loaded here -->
-            </div>
-
-            <div class="button-group">
-                <button class="btn btn-secondary" onclick="startOver()">Create New</button>
-            </div>
-        </section>
+        </div>
 
         <!-- Loading Spinner -->
         <div id="loading" class="loading hidden">

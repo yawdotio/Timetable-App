@@ -23,6 +23,11 @@ async def generate_calendar(request: GenerateCalendarRequest):
     Generate an .ics calendar file from provided events
     """
     try:
+        # Debug: log how many events the frontend actually sent
+        received_count = len(request.events)
+        sample_titles = [e.title for e in request.events[:5]]
+        print(f"[calendar.generate] Received {received_count} event(s); sample titles: {sample_titles}")
+
         # Validate events before generating (matching parser strategy)
         validation_errors = []
         valid_events = []

@@ -26,6 +26,21 @@ let adminState = {
     credentials: null
 };
 
+// Modal Functions
+function openTipsModal() {
+    const modal = document.getElementById('guide-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+}
+
+function closeGuideModal() {
+    const modal = document.getElementById('guide-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     // Check if on admin page and restore credentials from sessionStorage
@@ -48,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Drag and Drop
 function setupDragAndDrop() {
     const uploadArea = document.getElementById('upload-area');
+    if (!uploadArea) return;
     
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
         uploadArea.addEventListener(eventName, preventDefaults, false);
@@ -72,7 +88,8 @@ function setupDragAndDrop() {
 
     uploadArea.addEventListener('drop', handleDrop);
     uploadArea.addEventListener('click', () => {
-        document.getElementById('file-input').click();
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) fileInput.click();
     });
 }
 
@@ -88,6 +105,8 @@ function handleDrop(e) {
 // File Input
 function setupFileInput() {
     const fileInput = document.getElementById('file-input');
+    if (!fileInput) return;
+
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             handleFileUpload(e.target.files[0]);
@@ -116,7 +135,7 @@ async function handleFileUpload(file, sheetName = null) {
         return;
     }
     
-    if (!adminState.isLoggedIn) {
+    if (!adminState.isLoggedIn || !adminState.credentials) {
         showStatus('error', 'You must login as admin to upload files');
         return;
     }
@@ -175,7 +194,7 @@ async function handleUrlUpload(sheetName = null) {
         return;
     }
     
-    if (!adminState.isLoggedIn) {
+    if (!adminState.isLoggedIn || !adminState.credentials) {
         showStatus('error', 'You must login as admin to upload from URL');
         return;
     }
@@ -260,6 +279,8 @@ function getSourceTypeFromExt(ext) {
 // Show Status
 function showStatus(type, message) {
     const statusEl = document.getElementById('upload-status');
+    if (!statusEl) return; // Exit gracefully if status element doesn't exist
+    
     statusEl.textContent = message;
     statusEl.className = 'status-message';
     
@@ -271,13 +292,17 @@ function showStatus(type, message) {
 
 // Show Loading
 function showLoading(show) {
-    document.getElementById('loading').classList.toggle('hidden', !show);
+    const loadingEl = document.getElementById('loading');
+    if (loadingEl) loadingEl.classList.toggle('hidden', !show);
 }
 
 // Show Mapping Section
 function showMappingSection() {
-    document.getElementById('upload-section').classList.add('hidden');
-    document.getElementById('mapping-section').classList.remove('hidden');
+    const uploadSection = document.getElementById('upload-section');
+    const mappingSection = document.getElementById('mapping-section');
+    if (uploadSection) uploadSection.classList.add('hidden');
+    if (!mappingSection) return; // Exit if mapping section doesn't exist
+    mappingSection.classList.remove('hidden');
     renderSheetSelector();
     
     // Set default date to today
@@ -295,6 +320,7 @@ function showMappingSection() {
     
     selects.forEach(selectId => {
         const select = document.getElementById(selectId);
+        if (!select) return; // Skip if select doesn't exist
         select.innerHTML = '<option value="">-- Select Column --</option>';
         
         uploadedData.columns.forEach(col => {
@@ -824,7 +850,7 @@ function renderEventsTable() {
     const tbody = document.getElementById('table-body');
     
     // Create header (matching parser column names: Day, Time, Course, Venue)
-    const headers = ['Select', 'Day', 'Time', 'Course', 'Venue'];
+    const headers = ['Select', 'Day', 'Time', 'Course', 'Venue', 'Repeat'];
     thead.innerHTML = '<tr>' + 
         headers.map(h => `<th>${h}</th>`).join('') + 
         '</tr>';
@@ -846,19 +872,34 @@ function renderEventsTable() {
         const courseLevel = extractLevelFromCourse(event.title);
         const levelBadge = courseLevel ? `<span class="level-badge">${courseLevel}</span>` : '';
         
+        const recurringValue = (uploadedData.recurringSettings && uploadedData.recurringSettings[index]) || 'none';
+
         return `
         <tr class="${rowClass}">
             <td>
                 <input type="checkbox" 
                        class="event-checkbox" 
                        data-index="${index}" 
-                       checked 
                        onchange="updateEventCount()">
             </td>
             <td>${dateDisplay}</td>
             <td>${event.time || '<span class="missing">-</span>'}</td>
             <td><strong>${levelBadge}${event.title || '<span class="missing">No course</span>'}</strong></td>
             <td>${event.location || '-'}</td>
+            <td>
+                <select class="recurring-select" data-index="${index}" onchange="updateRecurring(${index}, this.value)">
+                    <option value="none" ${recurringValue === 'none' ? 'selected' : ''}>No repeat</option>
+                    <option value="weekly" ${recurringValue === 'weekly' ? 'selected' : ''}>Weekly</option>
+                    <option value="daily" ${recurringValue === 'daily' ? 'selected' : ''}>Daily (Mon-Fri)</option>
+                    <option value="MONDAY" ${recurringValue === 'MONDAY' ? 'selected' : ''}>Every Monday</option>
+                    <option value="TUESDAY" ${recurringValue === 'TUESDAY' ? 'selected' : ''}>Every Tuesday</option>
+                    <option value="WEDNESDAY" ${recurringValue === 'WEDNESDAY' ? 'selected' : ''}>Every Wednesday</option>
+                    <option value="THURSDAY" ${recurringValue === 'THURSDAY' ? 'selected' : ''}>Every Thursday</option>
+                    <option value="FRIDAY" ${recurringValue === 'FRIDAY' ? 'selected' : ''}>Every Friday</option>
+                    <option value="SATURDAY" ${recurringValue === 'SATURDAY' ? 'selected' : ''}>Every Saturday</option>
+                    <option value="SUNDAY" ${recurringValue === 'SUNDAY' ? 'selected' : ''}>Every Sunday</option>
+                </select>
+            </td>
         </tr>
         `;
     }).join('');
@@ -897,7 +938,8 @@ function deselectAllEvents() {
 }
 
 function updateEventCount() {
-    const checked = document.querySelectorAll('.event-checkbox:checked').length;
+    const checked = Array.from(document.querySelectorAll('.event-checkbox:checked'))
+        .filter(cb => !cb.closest('tr').classList.contains('hidden-row')).length;
     document.getElementById('event-count').textContent = 
         `${checked} event${checked !== 1 ? 's' : ''} selected`;
 }
@@ -954,7 +996,8 @@ function applyRecurringPattern(pattern) {
 
 // Generate Calendar
 async function generateCalendar() {
-    const checkboxes = document.querySelectorAll('.event-checkbox:checked');
+    const checkboxes = Array.from(document.querySelectorAll('.event-checkbox:checked'))
+        .filter(cb => !cb.closest('tr').classList.contains('hidden-row'));
     
     if (checkboxes.length === 0) {
         alert('Please select at least one event');
@@ -970,6 +1013,9 @@ async function generateCalendar() {
         const event = { ...uploadedData.mappedEvents[index] };
         // Remove internal tracking field before sending to API
         delete event.originalDay;
+        // Attach recurring preference for this event
+        const recurring = uploadedData.recurringSettings?.[index] || 'none';
+        event.recurring = recurring;
         // Add reminder_minutes to each event
         event.reminder_minutes = reminderMinutes;
         return event;
@@ -1174,229 +1220,7 @@ function startOver() {
 }
 
 // Subscription Functions
-function showSubscriptionForm() {
-    document.getElementById('download-section').classList.add('hidden');
-    document.getElementById('subscription-section').classList.remove('hidden');
-    
-    // Pre-fill with calendar name
-    const calendarName = document.getElementById('calendar-name').value;
-    document.getElementById('sub-name').value = calendarName;
-    const sourceUrlInput = document.getElementById('sub-source-url');
-    if (sourceUrlInput && uploadedData.sourceUrl) {
-        sourceUrlInput.value = uploadedData.sourceUrl;
-    }
-}
-
-function cancelSubscription() {
-    document.getElementById('subscription-section').classList.add('hidden');
-    document.getElementById('download-section').classList.remove('hidden');
-}
-
-async function createSubscription() {
-    const name = document.getElementById('sub-name').value;
-    const description = document.getElementById('sub-description').value;
-    const sourceUrl = document.getElementById('sub-source-url').value;
-    const calendarName = document.getElementById('calendar-name').value;
-    const timezone = document.getElementById('timezone').value;
-
-    if (!name) {
-        alert('Please enter a subscription name');
-        return;
-    }
-
-    showLoading(true);
-
-    // Build column mapping from our current state
-    const mapping = {};
-    
-    // Get the mapping from selected columns (we need to store this in state)
-    const dateCol = document.getElementById('date-column').value;
-    const timeCol = document.getElementById('time-column').value;
-    const titleCol = document.getElementById('title-column').value;
-    const locationCol = document.getElementById('location-column').value;
-    const endTimeCol = document.getElementById('end-time-column').value;
-    const descCol = document.getElementById('description-column').value;
-
-    if (dateCol) mapping.date_column = dateCol;
-    if (timeCol) mapping.time_column = timeCol;
-    if (titleCol) mapping.title_column = titleCol;
-    if (locationCol) mapping.location_column = locationCol;
-    if (endTimeCol) mapping.end_time_column = endTimeCol;
-    if (descCol) mapping.description_column = descCol;
-
-    const resolvedSourceUrl = sourceUrl || uploadedData.sourceUrl || null;
-    const resolvedSourceType = uploadedData.sourceType || (resolvedSourceUrl ? 'url' : 'manual');
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/subscription/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                name: name,
-                description: description,
-                source_url: resolvedSourceUrl,
-                source_type: resolvedSourceType,
-                parsing_rules: mapping,
-                calendar_name: calendarName,
-                timezone: timezone
-            })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.detail || 'Subscription creation failed');
-        }
-
-        // Show subscription success
-        const subscriptionUrl = `${API_BASE_URL}/subscription/${data.id}/calendar.ics`;
-        document.getElementById('subscription-url').value = subscriptionUrl;
-        
-        document.getElementById('subscription-section').classList.add('hidden');
-        document.getElementById('subscription-success-section').classList.remove('hidden');
-
-    } catch (error) {
-        alert(`Error: ${error.message}`);
-    } finally {
-        showLoading(false);
-    }
-}
-
-function copySubscriptionLink() {
-    const input = document.getElementById('subscription-url');
-    input.select();
-    document.execCommand('copy');
-    
-    // Show feedback
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.textContent = '✓ Copied!';
-    btn.style.background = '#10b981';
-    
-    setTimeout(() => {
-        btn.textContent = originalText;
-        btn.style.background = '';
-    }, 2000);
-}
-
-async function viewSubscriptions() {
-    showLoading(true);
-    
-    try {
-        const response = await fetch(`${API_BASE_URL}/subscription/`);
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error('Failed to load subscriptions');
-        }
-
-        displaySubscriptions(data.subscriptions);
-        
-        document.getElementById('subscription-success-section').classList.add('hidden');
-        document.getElementById('subscriptions-list-section').classList.remove('hidden');
-
-    } catch (error) {
-        alert(`Error: ${error.message}`);
-    } finally {
-        showLoading(false);
-    }
-}
-
-function displaySubscriptions(subscriptions) {
-    const container = document.getElementById('subscriptions-container');
-    
-    if (subscriptions.length === 0) {
-        container.innerHTML = '<p class="no-subscriptions">No subscriptions yet. Create your first one!</p>';
-        return;
-    }
-
-    container.innerHTML = subscriptions.map(sub => `
-        <div class="subscription-card">
-            <div class="subscription-card-header">
-                <h3>${escapeHtml(sub.name)}</h3>
-                <span class="subscription-badge">${sub.is_active ? 'Active' : 'Inactive'}</span>
-            </div>
-            <p>${escapeHtml(sub.description || 'No description')}</p>
-            <div class="subscription-meta">
-                <div>📅 ${sub.calendar_name}</div>
-                <div>🌍 ${sub.timezone}</div>
-                <div>📝 Created: ${new Date(sub.created_at).toLocaleDateString()}</div>
-            </div>
-            <div class="subscription-actions">
-                <button class="btn btn-primary btn-icon" onclick="copySubLink('${sub.id}')">
-                    📋 Copy Link
-                </button>
-                <button class="btn btn-secondary btn-icon" onclick="downloadSubCalendar('${sub.id}')">
-                    📥 Download
-                </button>
-                <button class="btn btn-danger btn-icon" onclick="deleteSubscription('${sub.id}')">
-                    🗑️ Delete
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function copySubLink(subscriptionId) {
-    const url = `${API_BASE_URL}/subscription/${subscriptionId}/calendar.ics`;
-    
-    // Create temporary input
-    const input = document.createElement('input');
-    input.value = url;
-    document.body.appendChild(input);
-    input.select();
-    document.execCommand('copy');
-    document.body.removeChild(input);
-    
-    alert('Subscription link copied to clipboard!');
-}
-
-async function downloadSubCalendar(subscriptionId) {
-    window.open(`${API_BASE_URL}/subscription/${subscriptionId}/calendar.ics`, '_blank');
-}
-
-async function deleteSubscription(subscriptionId) {
-    if (!confirm('Are you sure you want to delete this subscription?')) {
-        return;
-    }
-
-    showLoading(true);
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/subscription/${subscriptionId}`, {
-            method: 'DELETE'
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to delete subscription');
-        }
-
-        // Reload subscriptions list
-        await viewSubscriptions();
-
-    } catch (error) {
-        alert(`Error: ${error.message}`);
-    } finally {
-        showLoading(false);
-    }
-}
-
-async function viewSubscriptionsFromHeader() {
-    // Hide all sections
-    document.querySelectorAll('.section').forEach(section => {
-        section.classList.add('hidden');
-    });
-    
-    await viewSubscriptions();
-}
+// Removed: Subscription functionality is no longer available
 
 // Gallery: fetch and render saved uploads
 async function fetchGallery() {
@@ -1470,6 +1294,11 @@ async function useSavedUpload(uploadId) {
 async function deleteUpload(savedId) {
     if (!savedId) return;
     
+    if (!adminState.isLoggedIn || !adminState.credentials) {
+        showStatus('error', 'You must be logged in as admin to delete calendars');
+        return;
+    }
+    
     if (!confirm('Are you sure you want to delete this saved timetable?')) {
         return;
     }
@@ -1501,6 +1330,11 @@ async function deleteUpload(savedId) {
 // Rename an uploaded calendar
 async function renameUpload(savedId, currentName) {
     if (!savedId) return;
+    
+    if (!adminState.isLoggedIn || !adminState.credentials) {
+        showStatus('error', 'You must be logged in as admin to rename calendars');
+        return;
+    }
     
     const newName = prompt('Enter new name for this timetable:', currentName);
     if (!newName || newName.trim() === '' || newName === currentName) {
@@ -1545,6 +1379,10 @@ async function saveCurrentUpload() {
     }
     if (!name) {
         showStatus('error', 'Please enter a name to save');
+        return;
+    }
+    if (!adminState.isLoggedIn || !adminState.credentials) {
+        showStatus('error', 'You must be logged in as admin to save uploads');
         return;
     }
     try {

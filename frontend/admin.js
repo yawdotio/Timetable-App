@@ -121,7 +121,10 @@ async function loadAdminUploads() {
             }
         });
         
-        if (!response.ok) throw new Error('Failed to load uploads');
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to load uploads (${response.status})`);
+        }
         
         const uploads = await response.json();
         const list = document.getElementById('admin-uploads-list');
@@ -145,7 +148,8 @@ async function loadAdminUploads() {
         `).join('');
         
     } catch (error) {
-        showStatus('error', `Error loading uploads: ${error.message}`);
+        const list = document.getElementById('admin-uploads-list');
+        list.innerHTML = `<p class="error-message" style="color: #d32f2f; padding: 12px; background: #ffebee; border-radius: 4px;">⚠️ Error: ${error.message}</p>`;
     }
 }
 
@@ -160,7 +164,10 @@ async function loadAdminCalendars() {
             }
         });
         
-        if (!response.ok) throw new Error('Failed to load calendars');
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to load calendars (${response.status})`);
+        }
         
         const calendars = await response.json();
         const list = document.getElementById('admin-calendars-list');
@@ -184,7 +191,8 @@ async function loadAdminCalendars() {
         `).join('');
         
     } catch (error) {
-        showStatus('error', `Error loading calendars: ${error.message}`);
+        const list = document.getElementById('admin-calendars-list');
+        list.innerHTML = `<p class="error-message" style="color: #d32f2f; padding: 12px; background: #ffebee; border-radius: 4px;">⚠️ Error: ${error.message}</p>`;
     }
 }
 
@@ -277,7 +285,9 @@ async function uploadFile(file, sheetName = null) {
     }
 
     try {
-        showStatus('info', 'Uploading file...');
+        showStatus('info', '📤 Uploading file...');
+        showLoading('upload-area', true);
+        
         const response = await fetch(`${API_BASE_URL}/upload/file`, {
             method: 'POST',
             headers: {
@@ -286,9 +296,11 @@ async function uploadFile(file, sheetName = null) {
             body: formData
         });
 
+        showLoading('upload-area', false);
+        
         if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.detail || 'Upload failed');
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.detail || `Upload failed (${response.status})`);
         }
 
         const data = await response.json();
@@ -301,7 +313,7 @@ async function uploadFile(file, sheetName = null) {
         uploadedData.sourceType = 'file';
         uploadedData.filename = data.filename;
 
-        showStatus('success', data.message);
+        showStatus('success', '✓ File uploaded successfully! Mapping columns...');
         showSection('mapping-section');
         renderEventsTable();
 
@@ -310,7 +322,8 @@ async function uploadFile(file, sheetName = null) {
             renderSheetSelector(data.available_sheets, data.sheet_used);
         }
     } catch (error) {
-        showStatus('error', `Error: ${error.message}`);
+        showLoading('upload-area', false);
+        showStatus('error', `✗ Upload failed: ${error.message}`);
     }
 }
 
@@ -323,7 +336,8 @@ async function uploadFromUrl(url, sheetName = null) {
     }
     
     try {
-        showStatus('info', 'Fetching file from URL...');
+        showStatus('info', '📥 Fetching file from URL...');
+        
         const response = await fetch(`${API_BASE_URL}/upload/url`, {
             method: 'POST',
             headers: {
@@ -334,8 +348,8 @@ async function uploadFromUrl(url, sheetName = null) {
         });
 
         if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.detail || 'Upload failed');
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.detail || `Upload failed (${response.status})`);
         }
 
         const data = await response.json();
@@ -349,7 +363,7 @@ async function uploadFromUrl(url, sheetName = null) {
         uploadedData.sourceUrl = url;
         uploadedData.filename = data.filename;
 
-        showStatus('success', data.message);
+        showStatus('success', '✓ File fetched successfully! Mapping columns...');
         showSection('mapping-section');
         renderEventsTable();
 
@@ -357,6 +371,6 @@ async function uploadFromUrl(url, sheetName = null) {
             renderSheetSelector(data.available_sheets, data.sheet_used);
         }
     } catch (error) {
-        showStatus('error', `Error: ${error.message}`);
+        showStatus('error', `✗ Upload failed: ${error.message}`);
     }
 }

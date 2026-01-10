@@ -35,22 +35,28 @@ async def list_all_uploads(
     """
     List all uploaded files (admin only).
     """
-    admin = require_admin(credentials)
-    
-    uploads = db.query(UploadHistory).order_by(UploadHistory.created_at.desc()).all()
-    return [
-        {
-            "id": u.id,
-            "filename": u.filename,
-            "file_type": u.file_type,
-            "file_size": u.file_size,
-            "status": u.status,
-            "events_extracted": u.events_extracted,
-            "created_at": str(u.created_at) if u.created_at else None,
-            "processed_at": str(u.processed_at) if u.processed_at else None,
-        }
-        for u in uploads
-    ]
+    try:
+        admin = require_admin(credentials)
+        
+        uploads = db.query(UploadHistory).order_by(UploadHistory.created_at.desc()).all()
+        return [
+            {
+                "id": u.id,
+                "filename": u.filename,
+                "file_type": u.file_type,
+                "file_size": u.file_size,
+                "status": u.status,
+                "events_extracted": u.events_extracted,
+                "created_at": str(u.created_at) if u.created_at else None,
+                "processed_at": str(u.processed_at) if u.processed_at else None,
+            }
+            for u in uploads
+        ]
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(f"Error listing uploads: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error listing uploads: {str(e)}")
 
 
 @router.get("/saved-calendars")
@@ -61,20 +67,26 @@ async def list_all_saved_calendars(
     """
     List all saved calendars (admin only).
     """
-    admin = require_admin(credentials)
-    
-    saved = db.query(SavedUpload).order_by(SavedUpload.created_at.desc()).all()
-    return [
-        {
-            "id": s.id,
-            "upload_id": s.upload_id,
-            "name": s.name,
-            "filename": s.filename,
-            "file_type": s.file_type,
-            "created_at": str(s.created_at) if s.created_at else None,
-        }
-        for s in saved
-    ]
+    try:
+        admin = require_admin(credentials)
+        
+        saved = db.query(SavedUpload).order_by(SavedUpload.created_at.desc()).all()
+        return [
+            {
+                "id": s.id,
+                "upload_id": s.upload_id,
+                "name": s.name,
+                "filename": s.filename,
+                "file_type": s.file_type,
+                "created_at": str(s.created_at) if s.created_at else None,
+            }
+            for s in saved
+        ]
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(f"Error listing saved calendars: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error listing calendars: {str(e)}")
 
 
 @router.delete("/upload/{upload_id}")
