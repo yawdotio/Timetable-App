@@ -5,7 +5,6 @@ Updates: Handles hierarchical headers (MultiIndex) and Time indexes.
 import pdfplumber
 import pandas as pd
 import numpy as np
-from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dateutil import parser as date_parser
 import re
@@ -34,8 +33,8 @@ class FileParser:
     
     def _process_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Internal: Detects headers (hierarchical or standard) and restructures the DataFrame.
-        Handles cases where headers are split across multiple rows (e.g., Days -> Attributes).
+        Core Logic: Detects hierarchical headers and restructures the DataFrame.
+        Handles logic where headers are split across rows (e.g., Row 1: Mon/Tue, Row 2: Course/Room).
         """
         # 1. Clean completely empty rows/cols to start
         df = df.dropna(how="all").dropna(axis=1, how="all")
@@ -58,54 +57,45 @@ class FileParser:
             'teacher', 'instructor', 'lecturer', 'tutor', 'code'
         }
         
+        # Heuristic search for the header pattern
         for i in range(search_limit - 1):
-            # Get rows as lowercase strings for checking
             row_curr = df.iloc[i].astype(str).str.lower()
             row_next = df.iloc[i+1].astype(str).str.lower()
             
-            # Count matches
             days_found = sum(1 for cell in row_curr if any(d in cell for d in day_keywords))
             attrs_found = sum(1 for cell in row_next if any(a in cell for a in attr_keywords))
             
-            # Heuristic: If we find day names in one row and attributes in the next
+            # If we find day names in one row and attributes in the next
             if days_found >= 1 and attrs_found >= 2:
                 header_idx = i
                 header_found = True
                 break
 
         if header_found:
-            # --- Normalize Hierarchy (UNPIVOT) ---
-            # Row A (header_idx): Days (e.g., Monday, NaN, Tuesday, ...)
-            # Row B (header_idx+1): Attributes (e.g., Course, Venue, ...)
-
-            # Keep raw to detect common columns, and an ffilled copy to group per-day
+            # --- Normalize Hierarchy (UNPIVOT Logic) ---
             row_days_raw = df.iloc[header_idx].copy()
             row_attrs = df.iloc[header_idx + 1].copy()
 
             # Forward fill to cover merged cells (so Course/Venue under Monday get Monday)
             row_days_ffill = row_days_raw.replace({'nan': None, 'NaN': None, '': None}).ffill()
 
-            # Identify common columns (no day label OR has non-day label in RAW header row)
-            # Common columns are things like "Time", "Period" that apply to all days
+            # Identify common columns (e.g., Time, Period - columns that don't belong to a specific Day)
             common_cols_indices = []
             for i, val in enumerate(row_days_ffill):
-                if val is None or str(val).strip() in ('', 'nan', 'NaN'):
+                val_str = str(val).strip().lower()
+                is_empty = val is None or val_str in ('', 'nan', 'nan', 'none')
+                is_day = any(d in val_str for d in day_keywords)
+                
+                if is_empty or not is_day:
                     common_cols_indices.append(i)
-                else:
-                    # Check if this is NOT a day name (e.g., "Time", "Period")
-                    val_str = str(val).strip().lower()
-                    if not any(d in val_str for d in day_keywords):
-                        common_cols_indices.append(i)
 
-            # Identify day columns (have a day label after ffill AND matches day keywords)
+            # Identify day columns
             day_cols_indices = []
-            for i, val in enumerate(row_days_ffill):
-                if val is not None and str(val).strip() not in ('', 'nan', 'NaN'):
-                    val_str = str(val).strip().lower()
-                    if any(d in val_str for d in day_keywords):
-                        day_cols_indices.append(i)
+            for i, _ in enumerate(row_days_ffill):
+                if i not in common_cols_indices:
+                    day_cols_indices.append(i)
 
-            # Unique ordered list of days present across columns
+            # Unique ordered list of days present
             unique_days = []
             for i in day_cols_indices:
                 dval = str(row_days_ffill.iloc[i]).strip()
@@ -114,17 +104,13 @@ class FileParser:
 
             # Body starts after the two header rows
             data_body = df.iloc[header_idx + 2:].copy()
-
             normalized_chunks: List[pd.DataFrame] = []
 
-            # Helper to derive column names for common columns (e.g., Time/Period)
             def _name_for_common(idx: int) -> str:
                 name = str(row_attrs.iloc[idx]).strip()
-                if not name or name.lower() in ('nan', 'none'):
-                    # Fallback to whatever is in days row, else Time
-                    fallback = str(row_days_raw.iloc[idx]) if idx < len(row_days_raw) else ''
-                    fallback = (fallback or '').strip()
-                    return fallback or 'Time'
+                if not name or name.lower() in ('nan', 'none', ''):
+                    # Fallback to row_days if row_attrs is empty
+                    return str(row_days_raw.iloc[idx]).strip() or 'Time'
                 return name
 
             # Build chunk per day
@@ -135,95 +121,72 @@ class FileParser:
 
                 day_attr_names = [str(row_attrs.iloc[i]).strip() for i in current_day_indices]
                 
-                # Detect repeating attribute pattern (e.g., [Course, Venue, Course, Venue])
+                # Logic to detect repeating attributes (e.g. 2 slots per day: Course, Venue, Course, Venue)
+                # This splits one day into multiple rows if patterns repeat
                 base_pattern = []
-                if day_attr_names:
+                if len(day_attr_names) > 1:
                     first_attr = day_attr_names[0]
                     if day_attr_names.count(first_attr) > 1:
                         try:
-                            second_occurrence_idx = day_attr_names.index(first_attr, 1)
-                            p = day_attr_names[:second_occurrence_idx]
-                            # Verify the pattern is consistent
-                            if len(day_attr_names) % len(p) == 0:
-                                is_consistent = all(day_attr_names[i] == p[i % len(p)] for i in range(len(day_attr_names)))
-                                if is_consistent:
-                                    base_pattern = p
+                            # Try to find the repetition cycle
+                            second_idx = day_attr_names.index(first_attr, 1)
+                            candidate_pattern = day_attr_names[:second_idx]
+                            # Check consistency
+                            if len(day_attr_names) % len(candidate_pattern) == 0:
+                                base_pattern = candidate_pattern
                         except ValueError:
-                            pass  # No second occurrence
+                            pass 
                 
                 if not base_pattern:
                     base_pattern = day_attr_names
+
+                pattern_width = len(base_pattern)
                 
-                pattern_width = len(base_pattern) if base_pattern else 0
-                day_chunks = []
-                
-                if pattern_width > 0 and len(current_day_indices) % pattern_width == 0:
+                # Create sub-chunks if pattern repeats, otherwise just one chunk
+                num_repeats = 1
+                if len(current_day_indices) > pattern_width and len(current_day_indices) % pattern_width == 0:
                     num_repeats = len(current_day_indices) // pattern_width
-                    
-                    for i in range(num_repeats):
-                        start_idx = i * pattern_width
-                        end_idx = start_idx + pattern_width
-                        sub_indices = current_day_indices[start_idx:end_idx]
-                        
-                        cols_to_select = common_cols_indices + sub_indices
-                        chunk = data_body.iloc[:, cols_to_select].copy().reset_index(drop=True)
-                        
-                        common_names = [_name_for_common(idx) for idx in common_cols_indices]
-                        new_col_names = common_names + base_pattern
-                        # Fit and clean column names to the actual number of columns
-                        fitted_names = self._fit_column_names(new_col_names, chunk.shape[1])
-                        chunk.columns = fitted_names
 
-                        # Forward-fill common columns (like Time) for multi-line entries
-                        if common_names and chunk.shape[1] > 0:
-                            # The first len(common_names) columns correspond to the common columns
-                            num_common = min(len(common_names), chunk.shape[1])
-                            common_slice = list(chunk.columns[:num_common])
-                            chunk[common_slice] = chunk[common_slice].replace(['', 'nan', 'None', None], pd.NA).ffill()
-                        
-                        # Drop rows that are entirely empty after ffill
-                        chunk = chunk.dropna(how='all', subset=[c for c in chunk.columns if c not in common_names])
-                        
-                        if not chunk.empty:
-                            day_chunks.append(chunk)
+                for r in range(num_repeats):
+                    start_ptr = r * pattern_width
+                    end_ptr = start_ptr + pattern_width
+                    sub_indices = current_day_indices[start_ptr:end_ptr]
 
-                    if day_chunks:
-                        # Stack the unpivoted chunks vertically
-                        day_df = pd.concat(day_chunks, ignore_index=True)
-                        day_df['Day'] = day
-                        normalized_chunks.append(day_df)
-                else: # Fallback for irregular structure
-                    chunk = data_body.iloc[:, common_cols_indices + current_day_indices].copy()
+                    cols_to_select = common_cols_indices + sub_indices
+                    chunk = data_body.iloc[:, cols_to_select].copy().reset_index(drop=True)
+
                     common_names = [_name_for_common(idx) for idx in common_cols_indices]
-                    new_col_names = common_names + day_attr_names
-                    # Fit and clean column names to the actual number of columns
-                    fitted_names = self._fit_column_names(new_col_names, chunk.shape[1])
-                    chunk.columns = fitted_names
-                    if common_names and chunk.shape[1] > 0:
-                        num_common = min(len(common_names), chunk.shape[1])
-                        common_slice = list(chunk.columns[:num_common])
-                        chunk[common_slice] = chunk[common_slice].replace(['', 'nan', 'None', None], pd.NA).ffill()
-                    chunk['Day'] = day
-                    normalized_chunks.append(chunk)
+                    new_col_names = common_names + base_pattern
+                    
+                    chunk.columns = self._fit_column_names(new_col_names, chunk.shape[1])
+                    
+                    # Forward-fill common columns (like Time) 
+                    if common_names:
+                        c_slice = list(chunk.columns[:len(common_names)])
+                        chunk[c_slice] = chunk[c_slice].replace(['', 'nan', 'None', None], pd.NA).ffill()
 
-            # Concatenate into a single normalized frame
+                    chunk = chunk.dropna(how='all', subset=[c for c in chunk.columns if c not in common_names])
+                    
+                    if not chunk.empty:
+                        chunk['Day'] = day
+                        normalized_chunks.append(chunk)
+
             if normalized_chunks:
                 df = pd.concat(normalized_chunks, ignore_index=True)
-                
-                # Reorder to bring 'Day' and common columns to the front
+                # Reorder to put Day and Time first
                 common_names = self._clean_columns([_name_for_common(idx) for idx in common_cols_indices])
-                leading_cols = ['Day'] + [name for name in common_names if name in df.columns]
+                leading_cols = ['Day'] + [n for n in common_names if n in df.columns]
                 other_cols = [c for c in df.columns if c not in leading_cols]
                 df = df[leading_cols + other_cols]
             else:
-                # Fallback if normalization failed
+                # Fallback: hierarchy detected but normalization failed
                 df = df.iloc[header_idx + 2:].copy()
                 df.columns = self._clean_columns(df.columns)
         
         else:
-            # --- Fallback: Standard Header ---
-            # Assume first non-empty row is the header
+            # --- Fallback: Standard Header (No Hierarchy) ---
             if not df.empty:
+                # Assume first non-empty row is header
                 header_row = list(df.iloc[0].values)
                 df = df.iloc[1:].copy()
                 df.columns = self._fit_column_names(self._clean_columns(header_row), df.shape[1])
@@ -306,17 +269,15 @@ class FileParser:
             excel_file = pd.ExcelFile(file_path)
             best_df: Optional[pd.DataFrame] = None
             best_sheet: Optional[str] = None
-            best_score: Tuple[int, int] = (0, 0)  # (rows, cols)
+            best_score: Tuple[int, int] = (0, 0) # (rows, cols)
 
-            target_sheets = excel_file.sheet_names
-            if sheet_name and sheet_name in target_sheets:
-                target_sheets = [sheet_name]
+            target_sheets = [sheet_name] if sheet_name and sheet_name in excel_file.sheet_names else excel_file.sheet_names
 
             for sheet in target_sheets:
-                # Load with header=None to manually detect layout
+                # header=None is CRITICAL to allow _process_dataframe to find the header manually
                 df = excel_file.parse(sheet_name=sheet, dtype=str, header=None)
                 
-                # Process headers (detect hierarchy)
+                # Apply the logic
                 df = self._process_dataframe(df)
                 
                 if df.empty:
@@ -325,23 +286,20 @@ class FileParser:
                 df = df.fillna("")
                 score = (len(df), len(df.columns))
 
-                if sheet_name:
-                    best_df = df
-                    best_sheet = sheet
-                    break
-
+                # Simple heuristic: prefer the sheet with most data
                 if score > best_score:
                     best_score = score
                     best_df = df
                     best_sheet = sheet
 
             if best_df is None:
-                raise Exception("No usable sheets found in the Excel file")
+                # Fallback if no specific sheet logic worked, try reading first sheet normally
+                raise Exception("No usable tabular data found in Excel file.")
 
             data = best_df.astype(str).to_dict("records")
             suggested = self._detect_columns(list(best_df.columns))
             
-            # Post-process: Split time ranges if detected
+            # Post-process time ranges
             data = self._process_time_ranges(data, list(best_df.columns))
 
             return {
@@ -371,16 +329,16 @@ class FileParser:
                     continue
 
             if df is None:
-                raise Exception("Could not decode CSV file with any supported encoding")
+                raise Exception("Could not decode CSV file with supported encodings.")
 
-            # Process headers (detect hierarchy)
+            # Apply the logic
             df = self._process_dataframe(df)
             df = df.fillna("")
 
             data = df.astype(str).to_dict("records")
             suggested = self._detect_columns(list(df.columns))
             
-            # Post-process: Split time ranges if detected
+            # Post-process time ranges
             data = self._process_time_ranges(data, list(df.columns))
 
             return {
@@ -452,93 +410,61 @@ class FileParser:
         return FileParser._clean_columns(padded)
     
     def _process_time_ranges(self, data: List[Dict[str, Any]], columns: List[str]) -> List[Dict[str, Any]]:
-        """Process time ranges in format START-END and clean data"""
-        # Find time column
-        time_col = None
-        for col in columns:
-            if 'time' in col.lower() or 'period' in col.lower():
-                time_col = col
-                break
+        """Process time ranges (START-END) and clean empty string values"""
+        time_col = next((c for c in columns if 'time' in c.lower() or 'period' in c.lower()), None)
         
-        if not time_col:
-            return data
-        
-        # Process each row
         processed_data = []
         for row in data:
-            # Skip rows where ALL values are empty/nan (but keep rows with ANY non-empty value)
-            non_empty_values = [v for v in row.values() if str(v).strip() and str(v).lower() not in ('nan', 'none', '')]
-            if len(non_empty_values) == 0:
+            # Skip completely empty rows
+            non_empty = [v for v in row.values() if str(v).strip() and str(v).lower() not in ('nan', 'none', '')]
+            if not non_empty:
                 continue
             
-            # Clean the row
             cleaned_row = {}
             for key, value in row.items():
                 val_str = str(value).strip()
-                # Replace 'nan' with empty string
                 if val_str.lower() in ['nan', 'none', '']:
                     cleaned_row[key] = ""
                 else:
                     cleaned_row[key] = val_str
             
-            # Split time range if present
-            if time_col in cleaned_row and cleaned_row[time_col]:
+            if time_col and cleaned_row.get(time_col):
                 time_val = cleaned_row[time_col]
-                # Check for time range pattern (e.g., "9:00-10:00", "09:00 - 10:00")
-                time_range_pattern = r'(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})'
-                match = re.search(time_range_pattern, time_val)
+                # Normalize spaces in ranges "9:00 - 10:00" -> "9:00-10:00"
+                match = re.search(r'(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})', time_val)
                 if match:
-                    # Keep original format but could add start/end if needed
                     cleaned_row[time_col] = f"{match.group(1)}-{match.group(2)}"
             
             processed_data.append(cleaned_row)
-        
         return processed_data
 
     @staticmethod
     def _detect_columns(columns: List[str]) -> Dict[str, Optional[str]]:
         patterns = {
-            "date": [
-                "date", "day", "weekday", "day name", "datum", "fecha"
-            ],
-            "time": [
-                "time", "times", "period", "session", "slot", "start", "begin", "start time"
-            ],
-            "end_time": [
-                "end", "finish", "until", "to", "end time", "finish time"
-            ],
-            "title": [
-                "title", "event", "name", "subject", "course", "course title", "class", "module", "topic", "activity"
-            ],
-            "location": [
-                "location", "room", "room no", "rm", "venue", "place", "hall", "building", "lab", "address", "classroom"
-            ],
-            "description": [
-                "description", "notes", "details", "desc", "instructor", "teacher", "lecturer", "tutor"
-            ],
+            "date": ["date", "day", "weekday", "day name"],
+            "time": ["time", "times", "period", "session", "slot", "start"],
+            "end_time": ["end", "finish", "until", "to"],
+            "title": ["title", "event", "name", "subject", "course", "module", "class"],
+            "location": ["location", "room", "venue", "place", "hall", "lab"],
+            "description": ["description", "notes", "instructor", "teacher", "lecturer"]
         }
         mapping: Dict[str, Optional[str]] = {k: None for k in patterns.keys()}
         
-        # Priority matching: Check for exact matches first
         for col in columns:
             col_l = col.lower().strip()
-            # Exact matches for common timetable columns
-            if col_l in ("day", "weekday") and not mapping["date"]:
-                mapping["date"] = col
-            elif col_l == "time" and not mapping["time"]:
-                mapping["time"] = col
-            elif col_l in ["course", "subject"] and not mapping["title"]:
-                mapping["title"] = col
-            elif col_l == "venue" and not mapping["location"]:
-                mapping["location"] = col
+            # Exact matches priorities
+            if col_l in ("day", "weekday") and not mapping["date"]: mapping["date"] = col
+            elif col_l == "time" and not mapping["time"]: mapping["time"] = col
+            elif col_l in ["course", "subject"] and not mapping["title"]: mapping["title"] = col
+            elif col_l == "venue" and not mapping["location"]: mapping["location"] = col
         
-        # Fuzzy matching for remaining columns
+        # Fuzzy match
         for col in columns:
+            if col in mapping.values():
+                continue
             col_l = col.lower()
             for key, keywords in patterns.items():
-                if mapping[key]:
-                    continue
-                if any(kw in col_l for kw in keywords):
+                if not mapping[key] and any(kw in col_l for kw in keywords):
                     mapping[key] = col
                     break
         return mapping
