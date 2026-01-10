@@ -60,6 +60,84 @@ docker-compose down
 
 1. **Sign up** at [render.com](https://render.com)
 
+---
+
+## 🌐 Frontend Deployment (Static Hosting)
+
+The frontend is static files under [frontend/](frontend/). It reads runtime values from [frontend/env-config.js](frontend/env-config.js). Generate this file during deploy using your hosting provider's environment variables.
+
+### Option 1: Netlify (Recommended)
+
+1. Create a new site from your repository
+2. Set the following environment variables in Netlify UI:
+   - `API_BASE_URL` → your Cloud Run URL ending with `/api/v1`
+   - `CALENDAR_NAME` → default display name (optional)
+   - `TIMEZONE` → default timezone (optional)
+3. Build settings:
+   - Build command:
+     ```bash
+     bash -lc "echo // Auto-generated > frontend/env-config.js && \
+     echo window.ENV_API_BASE_URL='\"$API_BASE_URL\"'; >> frontend/env-config.js && \
+     echo window.ENV_CALENDAR_NAME='\"${CALENDAR_NAME:-My Timetable}\"'; >> frontend/env-config.js && \
+     echo window.ENV_TIMEZONE='\"${TIMEZONE:-UTC}\"'; >> frontend/env-config.js"
+     ```
+   - Publish directory: `frontend`
+4. Deploy and test the app. If you see CORS errors, update backend `CORS_ORIGINS` to include your Netlify domain.
+
+Alternative (Netlify `netlify.toml`):
+```toml
+[build]
+  publish = "frontend"
+  command = "bash scripts/gen-env.sh"
+```
+And create `scripts/gen-env.sh` to write [frontend/env-config.js](frontend/env-config.js) using `$API_BASE_URL`, `$CALENDAR_NAME`, `$TIMEZONE`.
+
+### Option 2: Vercel
+
+1. Import the repository into Vercel
+2. Under Project Settings → Environment Variables, add:
+   - `API_BASE_URL`
+   - `CALENDAR_NAME` (optional)
+   - `TIMEZONE` (optional)
+3. Build & Output Settings:
+   - Build Command:
+     ```bash
+     bash -lc "echo // Auto-generated > frontend/env-config.js && \
+     echo window.ENV_API_BASE_URL='\"$API_BASE_URL\"'; >> frontend/env-config.js && \
+     echo window.ENV_CALENDAR_NAME='\"${CALENDAR_NAME:-My Timetable}\"'; >> frontend/env-config.js && \
+     echo window.ENV_TIMEZONE='\"${TIMEZONE:-UTC}\"'; >> frontend/env-config.js"
+     ```
+   - Output Directory: `frontend`
+4. Deploy. Ensure backend `CORS_ORIGINS` includes your Vercel domain.
+
+### Option 3: GitHub Pages (Simple)
+
+1. Build `env-config.js` locally:
+   ```bash
+   echo "window.ENV_API_BASE_URL='https://<cloud-run>/api/v1';" > frontend/env-config.js
+   echo "window.ENV_CALENDAR_NAME='My Timetable';" >> frontend/env-config.js
+   echo "window.ENV_TIMEZONE='UTC';" >> frontend/env-config.js
+   ```
+2. Push the `frontend/` folder to a `gh-pages` branch
+3. Enable GitHub Pages in repo settings → Pages → Branch: `gh-pages`
+4. Add your GitHub Pages URL to backend `CORS_ORIGINS`.
+
+### Backend CORS Reminder
+
+After deploying the frontend, update the backend CORS origins to include your frontend domain. Example:
+```bash
+gcloud run services update timetable-generator \
+  --region us-central1 \
+  --set-env-vars '^;^CORS_ORIGINS=["https://your-netlify-site.netlify.app","https://your-vercel-project.vercel.app"]'
+```
+
+### Quick Smoke Test
+
+- Open the deployed frontend
+- Upload a file or try a sample
+- Confirm API calls succeed and no CORS errors appear in DevTools
+
+
 2. **Create Web Service**:
    - Click "New" → "Web Service"
    - Connect GitHub repository
