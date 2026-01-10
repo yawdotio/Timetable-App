@@ -1,0 +1,10 @@
+// Code to add to frontend/app.js in the DOMContentLoaded event handler
+// Insert this after the calendar name initialization
+
+    // Initialize API Docs link dynamically
+    const docsLink = document.getElementById('api-docs-link');
+    if (docsLink && API_BASE_URL) {
+        // Extract base URL (remove /api/v1)
+        const baseUrl = API_BASE_URL.replace('/api/v1', '');
+        docsLink.href = baseUrl + '/api/v1/docs';
+    }

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timetable Generator - Create Your Calendar</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Environment configuration - load before app.js -->
+    <script src="env-config.js"></script>
 </head>
 <body>
     <div class="container">
@@ -202,7 +204,7 @@
             <div class="calendar-settings">
                 <div class="setting-row">
                     <label>Calendar Name:</label>
-                    <input type="text" id="calendar-name" value="My Timetable" class="text-input">
+                    <input type="text" id="calendar-name" value="" class="text-input" placeholder="My Timetable">
                 </div>
                 <div class="setting-row">
                     <label>Timezone:</label>

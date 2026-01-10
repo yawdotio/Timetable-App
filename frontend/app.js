@@ -1,5 +1,7 @@
-// Configuration
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+// Configuration - load from environment or use defaults
+const API_BASE_URL = window.ENV_API_BASE_URL || 'http://localhost:8000/api/v1';
+const DEFAULT_CALENDAR_NAME = window.ENV_CALENDAR_NAME || 'My Timetable';
+const DEFAULT_TIMEZONE = window.ENV_TIMEZONE || 'UTC';
 
 // State
 let uploadedData = {
@@ -43,6 +45,13 @@ function closeGuideModal() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize calendar name from environment configuration
+    const calendarNameInput = document.getElementById('calendar-name');
+    if (calendarNameInput && DEFAULT_CALENDAR_NAME) {
+        calendarNameInput.value = DEFAULT_CALENDAR_NAME;
+        calendarNameInput.placeholder = DEFAULT_CALENDAR_NAME;
+    }
+    
     // Check if on admin page and restore credentials from sessionStorage
     if (window.location.pathname.includes('admin.html')) {
         const savedCredentials = sessionStorage.getItem('adminCredentials');

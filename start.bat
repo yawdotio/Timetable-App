@@ -28,6 +28,13 @@ if errorlevel 1 (
 )
 
 echo.
+echo Setting up frontend environment configuration...
+call setup-env.bat
+if errorlevel 1 (
+    echo Warning: Failed to setup environment (non-critical)
+)
+
+echo.
 echo Setting up environment...
 if not exist ".env" (
     copy .env.example .env

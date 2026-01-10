@@ -27,6 +27,13 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
+echo "Setting up frontend environment configuration..."
+bash setup-env.sh
+if [ $? -ne 0 ]; then
+    echo "Warning: Failed to setup environment (non-critical)"
+fi
+
+echo ""
 echo "Setting up environment..."
 if [ ! -f ".env" ]; then
     cp .env.example .env
