@@ -61,4 +61,3 @@ window.ENV_TIMEZONE = '${timezone}';
     console.error('✗ Error generating env-config.js:', error.message);
     process.exit(1);
 }
- 
