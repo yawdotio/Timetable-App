@@ -1,7 +1,7 @@
-// Configuration - load from environment or use defaults
-const API_BASE_URL = window.ENV_API_BASE_URL || 'http://localhost:8000/api/v1';
-const DEFAULT_CALENDAR_NAME = window.ENV_CALENDAR_NAME || 'My Timetable';
-const DEFAULT_TIMEZONE = window.ENV_TIMEZONE || 'UTC';
+// Configuration will be loaded from backend API
+let API_BASE_URL = 'https://timetable-generator-183706276960.us-central1.run.app/api/v1'; // Temporary default (overridden by config loader)
+let DEFAULT_CALENDAR_NAME = 'My Timetable'; // Temporary default
+let DEFAULT_TIMEZONE = 'UTC'; // Temporary default
 
 // State
 let uploadedData = {
@@ -44,7 +44,15 @@ function closeGuideModal() {
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // Load configuration from backend API first
+    await loadConfig();
+    
+    // Update local variables from CONFIG
+    API_BASE_URL = CONFIG.API_BASE_URL;
+    DEFAULT_CALENDAR_NAME = CONFIG.DEFAULT_CALENDAR_NAME;
+    DEFAULT_TIMEZONE = CONFIG.DEFAULT_TIMEZONE;
+    
     // Initialize calendar name from environment configuration
     const calendarNameInput = document.getElementById('calendar-name');
     if (calendarNameInput && DEFAULT_CALENDAR_NAME) {

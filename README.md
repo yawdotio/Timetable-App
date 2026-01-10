@@ -122,6 +122,20 @@ The API will be available at:
 - **ReDoc**: http://localhost:8000/api/v1/redoc
 - **Frontend**: http://localhost:8080 (if running the HTML frontend)
 
+## Deploying the Frontend to Vercel (Backend on Google Cloud)
+
+1. **Expose the backend**: Deploy the FastAPI service to Google Cloud (Cloud Run or similar) and note the public URL ending in `/api/v1` (example: `https://timetable-generator-123.run.app/api/v1`).
+2. **Allow CORS**: Add your Vercel domain (including the preview domain) to `CORS_ORIGINS` in the backend environment or keep the permissive default during testing.
+3. **Set Vercel env vars**:
+  - `API_BASE_URL` = your backend API base (must include `/api/v1`).
+  - `CALENDAR_NAME` (optional) = default calendar display name.
+  - `TIMEZONE` (optional) = default timezone (e.g., `UTC`).
+4. **Build settings** (already in `vercel.json`):
+  - Build command: `bash scripts/gen-env.sh` (creates `frontend/env-config.js`).
+  - Output directory: `frontend`.
+5. **Deploy**: Point Vercel at the repo or upload the `frontend` folder; Vercel will generate `env-config.js` from the env vars and serve the static site.
+6. **Verify**: Open the deployed site; network calls should target `API_BASE_URL`. Hitting `https://<backend>/api/v1/config` should return JSON with `api_base_url`, `calendar_name`, and `timezone`.
+
 ### Production Mode
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4

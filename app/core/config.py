@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # Project info
     PROJECT_NAME: str = "Timetable Generator API"
     API_V1_STR: str = "/api/v1"
+    API_BASE_URL: str = "https://timetable-generator-183706276960.us-central1.run.app/api/v1"
     
     # CORS
     CORS_ORIGINS: List[AnyHttpUrl] = [
