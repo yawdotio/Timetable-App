@@ -1,0 +1,46 @@
+steps:
+  # Build Docker image and push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/timetable-generator-api:${SHORT_SHA}'
+      - '-t'
+      - '${_GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/timetable-generator-api:latest'
+      - '.'
+
+  # Push image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/timetable-generator-api:${SHORT_SHA}'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/run'
+    args:
+      - 'deploy'
+      - 'timetable-generator-api'
+      - '--image'
+      - '${_GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/timetable-generator-api:${SHORT_SHA}'
+      - '--region'
+      - '${_GAR_LOCATION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'DATABASE_URL=${_DATABASE_URL},SECRET_KEY=${_SECRET_KEY},ADMIN_USERNAME=${_ADMIN_USERNAME},ADMIN_PASSWORD=${_ADMIN_PASSWORD}'
+
+substitutions:
+  _REPOSITORY: 'timetable-generator'
+  _GAR_LOCATION: 'us-central1'
+  _DATABASE_URL: ''  # Set via Cloud Build trigger
+  _SECRET_KEY: ''    # Set via Cloud Build trigger
+  _ADMIN_USERNAME: '' # Set via Cloud Build trigger
+  _ADMIN_PASSWORD: '' # Set via Cloud Build trigger
+
+images:
+  - '${_GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/timetable-generator-api:${SHORT_SHA}'
+  - '${_GAR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/timetable-generator-api:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
