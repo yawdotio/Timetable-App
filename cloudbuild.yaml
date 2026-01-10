@@ -31,7 +31,7 @@ steps:
       - 'DATABASE_URL=${_DATABASE_URL},SECRET_KEY=${_SECRET_KEY},ADMIN_USERNAME=${_ADMIN_USERNAME},ADMIN_PASSWORD=${_ADMIN_PASSWORD}'
 
 substitutions:
-  _REPOSITORY: 'timetable-generator'
+  _REPOSITORY: 'timetable-generator-'
   _GAR_LOCATION: 'us-central1'
   _DATABASE_URL: ''  # Set via Cloud Build trigger
   _SECRET_KEY: ''    # Set via Cloud Build trigger
