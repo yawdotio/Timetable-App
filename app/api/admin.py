@@ -38,7 +38,7 @@ async def list_all_uploads(
     try:
         admin = require_admin(credentials)
         
-        uploads = db.query(UploadHistory).order_by(UploadHistory.created_at.desc()).all()
+        uploads = db.query(UploadHistory).order_by(UploadHistory.uploaded_at.desc()).all()
         return [
             {
                 "id": u.id,
@@ -47,7 +47,9 @@ async def list_all_uploads(
                 "file_size": u.file_size,
                 "status": u.status,
                 "events_extracted": u.events_extracted,
-                "created_at": str(u.created_at) if u.created_at else None,
+                # Keep created_at alias for backward compatibility
+                "uploaded_at": str(u.uploaded_at) if u.uploaded_at else None,
+                "created_at": str(u.uploaded_at) if u.uploaded_at else None,
                 "processed_at": str(u.processed_at) if u.processed_at else None,
             }
             for u in uploads

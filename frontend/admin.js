@@ -139,7 +139,7 @@ async function loadAdminUploads() {
                 <div class="admin-list-item-info">
                     <h5>${upload.filename}</h5>
                     <p>Type: ${upload.file_type} | Size: ${upload.file_size} bytes | Status: ${upload.status}</p>
-                    <p>Events: ${upload.events_extracted || 0} | Created: ${upload.created_at || '-'}</p>
+                    <p>Events: ${upload.events_extracted || 0} | Uploaded: ${upload.uploaded_at || upload.created_at || '-'} | Processed: ${upload.processed_at || '-'}</p>
                 </div>
                 <div class="admin-list-item-actions">
                     <button class="btn btn-small btn-danger" onclick="adminDeleteUpload('${upload.id}')">Delete</button>
