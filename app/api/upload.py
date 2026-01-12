@@ -19,7 +19,9 @@ from app.core.auth import security, require_admin
 from app.schemas.event import FileUploadResponse, FileUploadUrlRequest, ProcessingStatus
 from app.models.subscription import UploadHistory, SavedUpload
 from app.utils.parser import FileParser
+from app.utils.storage import get_storage
 from datetime import datetime
+import tempfile
 
 # In-memory storage for uploaded files (could be moved to Redis/database for production)
 file_cache: Dict[str, str] = {}
@@ -118,17 +120,22 @@ async def upload_file(
     # Generate unique upload ID
     upload_id = str(uuid.uuid4())
     
-    # Save file
-    upload_dir = Path(settings.UPLOAD_DIR)
-    upload_dir.mkdir(exist_ok=True)
-    
-    file_path = upload_dir / f"{upload_id}_{file.filename}"
-    
     try:
-        # Save uploaded file
+        # Read file contents
         contents = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(contents)
+        
+        # Upload to GCS if enabled
+        if settings.USE_GCS:
+            storage = get_storage()
+            blob_name = storage.upload_file(contents, file.filename, upload_id)
+        else:
+            # Fallback to local storage
+            upload_dir = Path(settings.UPLOAD_DIR)
+            upload_dir.mkdir(exist_ok=True)
+            file_path = upload_dir / f"{upload_id}_{file.filename}"
+            with open(file_path, "wb") as f:
+                f.write(contents)
+            blob_name = None
         
         # Create upload history record
         upload_record = UploadHistory(
@@ -141,9 +148,20 @@ async def upload_file(
         db.add(upload_record)
         db.commit()
         
-        # Parse file
+        # Parse file - download from GCS if needed
         parser = FileParser()
-        parsed_data = parser.parse_file(str(file_path), file_ext, sheet_name=sheet_name)
+        if settings.USE_GCS:
+            # Create temp file for parsing
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
+                tmp.write(contents)
+                tmp_path = tmp.name
+            try:
+                parsed_data = parser.parse_file(tmp_path, file_ext, sheet_name=sheet_name)
+            finally:
+                # Clean up temp file
+                Path(tmp_path).unlink(missing_ok=True)
+        else:
+            parsed_data = parser.parse_file(str(file_path), file_ext, sheet_name=sheet_name)
         
         # Update status
         upload_record.status = "completed"
@@ -151,8 +169,11 @@ async def upload_file(
         upload_record.processed_at = datetime.utcnow()
         db.commit()
         
-        # Cache the file path for re-parsing different sheets (optional)
-        file_cache[upload_id] = str(file_path)
+        # Cache the blob name or file path for re-parsing
+        if settings.USE_GCS:
+            file_cache[upload_id] = blob_name
+        else:
+            file_cache[upload_id] = str(file_path)
         
         return FileUploadResponse(
             upload_id=upload_id,
@@ -229,20 +250,27 @@ async def upload_from_url(
 
     # 4. Save & Process (Standard logic)
     upload_id = str(uuid.uuid4())
-    upload_dir = Path(settings.UPLOAD_DIR)
-    upload_dir.mkdir(exist_ok=True)
     
     # Ensure filename has extension
     final_filename = filename if filename.endswith(file_ext) else filename + file_ext
-    file_path = upload_dir / f"{upload_id}_{final_filename}"
 
     try:
         contents = response.content
         if not contents:
             raise HTTPException(status_code=400, detail="Fetched file is empty")
 
-        with open(file_path, "wb") as f:
-            f.write(contents)
+        # Upload to GCS if enabled
+        if settings.USE_GCS:
+            storage = get_storage()
+            blob_name = storage.upload_file(contents, final_filename, upload_id)
+        else:
+            # Fallback to local storage
+            upload_dir = Path(settings.UPLOAD_DIR)
+            upload_dir.mkdir(exist_ok=True)
+            file_path = upload_dir / f"{upload_id}_{final_filename}"
+            with open(file_path, "wb") as f:
+                f.write(contents)
+            blob_name = None
 
         upload_record = UploadHistory(
             id=upload_id,
@@ -256,7 +284,17 @@ async def upload_from_url(
 
         # 5. Parse
         parser = FileParser()
-        parsed_data = parser.parse_file(str(file_path), file_ext, sheet_name=payload.sheet_name)
+        if settings.USE_GCS:
+            # Create temp file for parsing
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
+                tmp.write(contents)
+                tmp_path = tmp.name
+            try:
+                parsed_data = parser.parse_file(tmp_path, file_ext, sheet_name=payload.sheet_name)
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+        else:
+            parsed_data = parser.parse_file(str(file_path), file_ext, sheet_name=payload.sheet_name)
 
         upload_record.status = "completed"
         upload_record.events_extracted = str(len(parsed_data.get("data", [])))
@@ -326,12 +364,20 @@ async def delete_upload(
     if not upload:
         raise HTTPException(status_code=404, detail="Upload not found")
     
-    # Delete file
-    upload_dir = Path(settings.UPLOAD_DIR)
-    file_path = upload_dir / f"{upload_id}_{upload.filename}"
-    
-    if file_path.exists():
-        file_path.unlink()
+    # Delete file from GCS or local storage
+    if settings.USE_GCS:
+        try:
+            storage = get_storage()
+            blob_name = f"{upload_id}_{upload.filename}"
+            storage.delete_file(blob_name)
+        except Exception as e:
+            # Log but don't fail if file doesn't exist
+            print(f"Warning: Could not delete file from GCS: {e}")
+    else:
+        upload_dir = Path(settings.UPLOAD_DIR)
+        file_path = upload_dir / f"{upload_id}_{upload.filename}"
+        if file_path.exists():
+            file_path.unlink()
     
     # Delete record
     db.delete(upload)
@@ -416,21 +462,43 @@ async def reparse_file(
     if not upload_record:
         raise HTTPException(status_code=404, detail="Upload record not found")
 
-    # Reconstruct the file path from upload directory and stored filename
-    upload_dir = Path(settings.UPLOAD_DIR)
-    file_path = upload_dir / f"{upload_id}_{upload_record.filename}"
-
-    # Verify the file exists on disk
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail="File not found on server. Please re-upload the file."
-        )
-
     try:
-        # Re-parse with the new sheet name
-        parser = FileParser()
-        parsed_data = parser.parse_file(str(file_path), upload_record.file_type, sheet_name=sheet_name)
+        # Download file from GCS or read from local storage
+        if settings.USE_GCS:
+            storage = get_storage()
+            blob_name = f"{upload_id}_{upload_record.filename}"
+            
+            # Check if file exists
+            if not storage.file_exists(blob_name):
+                raise HTTPException(
+                    status_code=404,
+                    detail="File not found in storage. Please re-upload the file."
+                )
+            
+            # Download and create temp file for parsing
+            file_content = storage.download_file(blob_name)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=upload_record.file_type) as tmp:
+                tmp.write(file_content)
+                tmp_path = tmp.name
+            
+            try:
+                parser = FileParser()
+                parsed_data = parser.parse_file(tmp_path, upload_record.file_type, sheet_name=sheet_name)
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+        else:
+            # Local storage
+            upload_dir = Path(settings.UPLOAD_DIR)
+            file_path = upload_dir / f"{upload_id}_{upload_record.filename}"
+            
+            if not file_path.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail="File not found on server. Please re-upload the file."
+                )
+            
+            parser = FileParser()
+            parsed_data = parser.parse_file(str(file_path), upload_record.file_type, sheet_name=sheet_name)
 
         # Update record
         upload_record.events_extracted = str(len(parsed_data.get("data", [])))

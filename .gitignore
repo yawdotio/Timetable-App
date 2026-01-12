@@ -38,6 +38,12 @@ uploads/*
 .env.frontend
 frontend/env-config.js
 
+# Google Cloud credentials
+gcs-key.json
+*-key.json
+*.json.key
+service-account*.json
+
 # Logs
 *.log
 logs/
@@ -54,3 +60,4 @@ htmlcov/
 # Temporary files
 *.tmp
 temp/
+gcs-key.json 

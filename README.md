@@ -100,7 +100,12 @@ copy .env.example .env
 # Edit .env with your configuration
 ```
 
-5. **Initialize the database**
+5. **Configure Google Cloud Storage** (for production/cloud deployment)
+See [GCS_SETUP.md](GCS_SETUP.md) for detailed instructions.
+
+For local development without GCS, set `USE_GCS=false` in your `.env` file.
+
+6. **Initialize the database**
 ```bash
 python -c "from app.core.database import init_db; init_db()"
 ```

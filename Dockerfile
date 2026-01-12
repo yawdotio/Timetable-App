@@ -45,7 +45,8 @@ COPY ./app ./app
 # Do NOT copy .env.example to .env (See "Secrets" below)
 COPY ./init_db.py .
 
-# Create uploads directory
+# Create uploads directory (optional when using GCS)
+# Used as fallback for local development or when USE_GCS=false
 RUN mkdir -p uploads
 
 # Cloud Run usage:
